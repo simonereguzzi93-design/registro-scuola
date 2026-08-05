@@ -437,6 +437,7 @@
       <h3>Archivia Anno Scolastico</h3>
       <p>Verranno archiviati tutti i <strong id="archiveCount">0</strong> studenti dell'anno in corso.</p>
       <div style="margin-top:16px"><input type="text" id="archiveYearLabel" value="2025–2026" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;text-align:center;width:140px"></div>
+      <div id="archiveYearInfo" style="margin-top:16px;text-align:left;background:var(--surface2);border-radius:10px;padding:12px 14px;font-size:0.85rem;color:var(--text2);line-height:1.5"></div>
     </div>
     <div class="confirm-footer">
       <button class="btn btn-secondary" onclick="closeModal('archiveYearModal')">Annulla</button>
@@ -667,6 +668,7 @@ onAuthStateChanged(auth, user => {
 const COLS = {
   students: 'students',
   archive:  'archive',
+  ritirati: 'ritirati',
   cestino:  'cestino',
   settings: 'settings',
   courses:  'courses',
@@ -710,6 +712,14 @@ function startListeners() {
   onSnapshot(collection(db, COLS.archive), snap => {
     archive = [];
     snap.forEach(d => archive.push({ id: d.id, ...d.data() }));
+    if (document.getElementById('tab-archivio').style.display !== 'none') renderArchive();
+  });
+
+  // Ritirati
+  onSnapshot(collection(db, COLS.ritirati), snap => {
+    ritirati = [];
+    snap.forEach(d => ritirati.push({ id: d.id, ...d.data() }));
+    if (document.getElementById('tab-archivio').style.display !== 'none') renderArchive();
   });
 
   // Settings (currentYear, courses, operatori)
@@ -763,6 +773,18 @@ window.fbSaveArchive = async (entry) => {
 window.fbDeleteArchive = async (id) => {
   const { doc: fbDoc, deleteDoc: fbDel } = window._fbModules;
   await fbDel(fbDoc(db, COLS.archive, String(id)));
+};
+
+window.fbSaveRitirato = async (entry) => {
+  const { doc: fbDoc, setDoc: fbSet } = window._fbModules;
+  const id = entry.id || ('ritirato_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  entry.id = id;
+  await fbSet(fbDoc(db, COLS.ritirati, id), entry);
+};
+
+window.fbDeleteRitirato = async (id) => {
+  const { doc: fbDoc, deleteDoc: fbDel } = window._fbModules;
+  await fbDel(fbDoc(db, COLS.ritirati, String(id)));
 };
 
 startListeners();
@@ -911,7 +933,7 @@ async function confirmEncPassword() {
 // ═══════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════
-let students = [], archive = [], cestino = [], courses = [], currentYear = '2025–2026';
+let students = [], archive = [], ritirati = [], cestino = [], courses = [], currentYear = '2025–2026';
 let editingId = null, sortField = 'matricola', sortAsc = true;
 let rataStudentId = null, freqStudentId = null;
 let selectedIds = new Set();
@@ -1178,10 +1200,13 @@ function openEditModal(id){
   openModal('studentModal');
 }
 
-function openViewModal(id){
-  const s=students.find(x=>String(x.id)===String(id)); if(!s) return;
-  document.getElementById('viewModalTitle').textContent=`${s.nome} ${s.cognome}`;
-  document.getElementById('viewModalEditBtn').onclick=()=>{closeModal('viewModal');openEditModal(id);};
+function openViewModal(id, externalStudent){
+  const s = externalStudent || students.find(x=>String(x.id)===String(id)); if(!s) return;
+  const readOnly = !!externalStudent;
+  document.getElementById('viewModalTitle').textContent=`${s.nome} ${s.cognome}`+(readOnly?' (Ritirato — sola lettura)':'');
+  const editBtn = document.getElementById('viewModalEditBtn');
+  editBtn.style.display = readOnly ? 'none' : '';
+  if(!readOnly) editBtn.onclick=()=>{closeModal('viewModal');openEditModal(id);};
   const sO=calcSaldoOrdinario(s),sL=calcSaldoLibri(s),sE=calcSaldoExtra(s),sT=sO+sL+sE;
   const row=(l,v)=>v?`<tr><td style="color:var(--text3);font-size:0.8rem;padding:6px 10px;width:40%">${l}</td><td style="padding:6px 10px;font-size:0.88rem">${v}</td></tr>`:'';
   document.getElementById('viewModalBody').innerHTML=`
@@ -1325,22 +1350,70 @@ async function emptyTrush(){
 //  ARCHIVE
 // ═══════════════════════════════════════════
 function showArchiveYearModal(){
+  const attivi = students.filter(s=>!s.ritirato);
+  const ritiratiCount = students.filter(s=>s.ritirato).length;
   document.getElementById('archiveCount').textContent=students.length;
   document.getElementById('archiveYearLabel').value=currentYear;
+  const info = document.getElementById('archiveYearInfo');
+  if (info) {
+    info.innerHTML = `${attivi.length} studenti attivi verranno portati nel nuovo anno (debiti/crediti riportati come saldo iniziale).<br>${ritiratiCount} studenti ritirati verranno spostati nell'archivio "Ritirati" (non nel nuovo anno).`;
+  }
   openModal('archiveYearModal');
 }
 
 async function archiveYear(){
   const label=document.getElementById('archiveYearLabel').value.trim()||currentYear;
   const operatore=await requireOperator(`Archivia anno: ${label}`,'🗃'); if(!operatore) return;
+
+  // 1) Snapshot completo di tutti gli studenti dell'anno (storico, invariato)
   const entry={id:'archive_'+Date.now(),anno:label,data:new Date().toLocaleDateString('it-IT'),studenti:JSON.parse(JSON.stringify(students))};
   await window.fbSaveArchive(entry);
+
+  const attivi = students.filter(s=>!s.ritirato);
+  const ritiratiList = students.filter(s=>s.ritirato);
+  const newYear = nextYear(label);
+
+  // 2) Studenti ritirati → archivio dedicato "Ritirati", con saldo finale e storico pagamenti
+  for (const s of ritiratiList) {
+    const saldo = calcSaldoTotale(s);
+    const ritEntry = {
+      id: 'ritirato_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      matricola: s.matricola, nome: s.nome, cognome: s.cognome, classe: s.classe, sezione: s.sezione,
+      corso: s.corso||'', annoRitiro: label, dataArchiviazione: new Date().toISOString().slice(0,10),
+      saldoFinale: saldo, inDebito: saldo < 0, student: JSON.parse(JSON.stringify(s)),
+    };
+    await window.fbSaveRitirato(ritEntry);
+  }
+
+  // 3) Studenti attivi → nuovi record per il nuovo anno, con debiti/crediti riportati come saldo iniziale
+  for (const s of attivi) {
+    const sT = calcSaldoTotale(s);
+    const ns = {
+      id: String(Date.now()+Math.random()),
+      matricola:s.matricola,nome:s.nome,cognome:s.cognome,classe:s.classe,sezione:s.sezione,
+      corso:s.corso||'',dataNascita:s.dataNascita,genitore:s.genitore,email:s.email,telefono:s.telefono,
+      dataIscrizione:'',modalita:s.modalita,metodo:s.metodo,prezzoLezione:s.prezzoLezione||35,
+      quotaIscr:0,rata1:sT>0?sT:0,dataRata1:sT>0?new Date().toISOString().slice(0,10):'',
+      rata2:0,dataRata2:'',rata3:0,dataRata3:'',
+      noteRate:sT!==0?`Saldo riportato da A.S. ${label}: ${sT>0?'+':''}€${sT.toFixed(2)}`:'',
+      totaleDovuto:sT<0?Math.abs(sT):0,
+      libri1:0,dataLibri1:'',libri2:0,dataLibri2:'',metodoLibri:'',libriDovuto:0,
+      corsoExtra1:'',extra1:0,dataExtra1:'',corsoExtra2:'',extra2:0,dataExtra2:'',extraDovuto:0,
+      note:`Continua da A.S. ${label}`+(s.note?' — '+s.note:''),
+      lezioni:[],ritirato:false,continua:true,changelog:[],
+    };
+    addChangelogEntry(ns,operatore,`Anno archiviato: ${label} → nuovo A.S. ${newYear}`);
+    await window.fbSaveStudent(ns);
+  }
+
+  // 4) Svuota la lista corrente (tutti già salvati in archivio storico + ritirati/nuovo anno)
   for(const s of students) await window.fbDeleteStudent(s.id);
-  currentYear=nextYear(label);
+
+  currentYear=newYear;
   await saveSettings();
   document.getElementById('currentYearBadge').textContent='A.S. '+currentYear;
   closeModal('archiveYearModal');
-  showToast(`✅ Anno ${label} archiviato!`);
+  showToast(`✅ Anno ${label} archiviato: ${attivi.length} studenti portati nel nuovo anno, ${ritiratiList.length} spostati nell'archivio Ritirati.`);
 }
 
 function nextYear(label){
@@ -1350,8 +1423,9 @@ function nextYear(label){
 
 function renderArchive(){
   const el=document.getElementById('archiveContent');
-  if(archive.length===0){el.innerHTML=`<div class="empty-state"><div class="icon">🗃</div><p>Nessun anno archiviato.</p></div>`;return;}
-  el.innerHTML=archive.map(entry=>{
+  const ritiratiHtml = renderRitiratiSection();
+  if(archive.length===0){el.innerHTML=ritiratiHtml+`<div class="empty-state"><div class="icon">🗃</div><p>Nessun anno archiviato.</p></div>`;return;}
+  el.innerHTML=ritiratiHtml+archive.map(entry=>{
     const inD=entry.studenti?entry.studenti.filter(s=>calcSaldoTotale(s)<0).length:0;
     const totV=entry.studenti?entry.studenti.reduce((a,s)=>a+(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0)+(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0)+(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0),0):0;
     return `<div class="table-wrap" style="margin-bottom:20px">
@@ -1364,6 +1438,30 @@ function renderArchive(){
       <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
         <button class="btn btn-danger btn-sm" onclick="deleteArchive('${entry.id}')">🗑 Elimina</button></div></div>`;
   }).join('');
+}
+
+function renderRitiratiSection(){
+  if(!ritirati || ritirati.length===0) return '';
+  const ordinati=[...ritirati].sort((a,b)=>(b.dataArchiviazione||'').localeCompare(a.dataArchiviazione||''));
+  const inDebito=ordinati.filter(r=>r.inDebito).length;
+  const totDebito=ordinati.filter(r=>r.inDebito).reduce((a,r)=>a+Math.abs(r.saldoFinale||0),0);
+  return `<div class="table-wrap" style="margin-bottom:28px;border:1.5px solid var(--danger-light)">
+    <div class="table-header-row"><span class="table-title">🚪 Studenti Ritirati</span>
+    <span class="table-count">${ordinati.length} studenti · ${inDebito} con debito residuo${inDebito?` · Totale da recuperare: € ${totDebito.toFixed(2)}`:''}</span></div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>#</th><th>Nome</th><th>Cognome</th><th>Classe</th><th>Ritirato dopo A.S.</th><th>Saldo Finale</th><th>Stato</th><th></th></tr></thead>
+    <tbody>${ordinati.map(r=>{
+      const badge=r.inDebito?'<span class="badge badge-red">⚠️ Debito</span>':(r.saldoFinale===0?'<span class="badge badge-green">✅ In pari</span>':'<span class="badge badge-blue">💙 Credito</span>');
+      return `<tr><td>${r.matricola||'–'}</td><td><strong>${r.nome}</strong></td><td>${r.cognome}</td><td><span class="badge badge-blue">${r.classe||'–'}</span></td><td>${r.annoRitiro||'–'}</td><td><strong>${fmtEuro(r.saldoFinale||0)}</strong></td><td>${badge}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="viewRitiratoDetail('${r.id}')">👁 Dettagli</button></td></tr>`;
+    }).join('')}</tbody></table></div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);font-size:0.82rem;color:var(--text3)">Questi studenti non sono stati riportati nell'anno in corso. Storico pagamenti conservato per ciascuno.</div>
+  </div>`;
+}
+
+function viewRitiratoDetail(id){
+  const r = ritirati.find(x=>String(x.id)===String(id));
+  if(!r) return;
+  openViewModal(r.student.id, r.student);
 }
 
 async function deleteArchive(id){
@@ -1787,7 +1885,7 @@ document.addEventListener('click', e => {
 });
 
 function getBackupData() {
-  return { _version: 2, _savedAt: new Date().toISOString(), _app: 'gestione-pagamenti', currentYear, students, archive, courses, cestino };
+  return { _version: 3, _savedAt: new Date().toISOString(), _app: 'gestione-pagamenti', currentYear, students, archive, ritirati, courses, cestino };
 }
 
 function backupJSON() {
@@ -1837,12 +1935,16 @@ function restoreFromJSON(event) {
       if (!confirm(`Ripristinare il backup del ${data._savedAt ? new Date(data._savedAt).toLocaleString('it-IT') : '–'}?\n\nI dati attuali su Firebase verranno sostituiti.`)) return;
       students    = data.students || [];
       archive     = data.archive  || [];
+      ritirati    = data.ritirati || [];
       courses     = data.courses  || getDefaultCourses();
       cestino     = data.cestino  || [];
       currentYear = data.currentYear || '2025–2026';
       // Push everything to Firebase
       (async () => {
         for (const s of students) await window.fbSaveStudent(s);
+        for (const a of archive) await window.fbSaveArchive(a);
+        for (const r of ritirati) await window.fbSaveRitirato(r);
+        for (const c of cestino) await window.fbSaveCestino(c);
         await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori() });
         document.getElementById('currentYearBadge').textContent = 'A.S. ' + currentYear;
         populateFilters(); renderTable(); updateCestinoTabBadge();
