@@ -1,0 +1,1895 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestione Pagamenti Scuola</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f2ee; --surface: #ffffff; --surface2: #f0ece6; --border: #ddd8d0;
+    --accent: #2d6a4f; --accent2: #52b788; --accent-light: #d8f3dc;
+    --danger: #c1440e; --danger-light: #fce8e0; --warning: #b5770d; --warning-light: #fef3cd;
+    --text: #1a1a1a; --text2: #555; --text3: #888;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08); --shadow-lg: 0 8px 32px rgba(0,0,0,0.12); --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .header { background: var(--accent); color: white; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; box-shadow: 0 2px 16px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; letter-spacing: 0.01em; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .year-badge { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 20px; padding: 4px 14px; font-size: 0.85rem; font-weight: 500; }
+  .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 12px; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #52b788; }
+  .sync-dot.syncing { background: #ffd166; animation: pulse 1s infinite; }
+  .sync-dot.error { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .toolbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar input[type="text"] { flex: 1; min-width: 200px; padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.9rem; background: var(--bg); outline: none; transition: border-color .2s; }
+  .toolbar input:focus { border-color: var(--accent2); }
+  .toolbar select { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.9rem; background: var(--bg); outline: none; cursor: pointer; }
+  .btn { padding: 8px 16px; border-radius: 8px; border: none; font-family: inherit; font-size: 0.88rem; font-weight: 500; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--accent); color: white; } .btn-primary:hover { background: #245a41; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); } .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: var(--danger); color: white; } .btn-danger:hover { background: #a33a0b; }
+  .btn-archive { background: #6c757d; color: white; } .btn-archive:hover { background: #565e64; }
+  .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+  .btn-promote { background: #1a5fa8; color: white; } .btn-promote:hover { background: #154e8a; }
+  .btn-retire { background: var(--warning); color: white; } .btn-retire:hover { background: #9a6509; }
+  .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; padding: 20px 32px; }
+  .stat-card { background: var(--surface); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); border-left: 4px solid var(--accent2); }
+  .stat-card.warn { border-left-color: var(--warning); } .stat-card.danger { border-left-color: var(--danger); }
+  .stat-label { font-size: 0.78rem; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .stat-value { font-size: 1.5rem; font-weight: 600; color: var(--text); }
+  .stat-value.euro::before { content: '€ '; font-size: 1rem; color: var(--text3); }
+  .main { padding: 0 32px 40px; }
+  .table-wrap { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .table-header-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .table-title { font-family: 'DM Serif Display', serif; font-size: 1.05rem; color: var(--text); }
+  .table-count { font-size: 0.82rem; color: var(--text3); }
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl thead th { background: var(--surface2); padding: 10px 14px; text-align: left; font-size: 0.78rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+  .tbl thead th:hover { color: var(--accent); }
+  .tbl tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  .tbl tbody tr:last-child { border-bottom: none; }
+  .tbl tbody tr:hover { background: var(--surface2); }
+  .tbl td { padding: 10px 14px; font-size: 0.87rem; vertical-align: middle; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 500; }
+  .badge-green { background: var(--accent-light); color: var(--accent); }
+  .badge-red { background: var(--danger-light); color: var(--danger); }
+  .badge-yellow { background: var(--warning-light); color: var(--warning); }
+  .badge-gray { background: #eee; color: #666; }
+  .badge-blue { background: #ddeeff; color: #1a5fa8; }
+  .badge-orange { background: #fff0d6; color: #b5770d; }
+  .saldo-neg { color: var(--danger); font-weight: 600; }
+  .saldo-zero { color: var(--accent); font-weight: 600; }
+  .saldo-pos { color: #1a5fa8; font-weight: 600; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 16px; width: 100%; max-width: 760px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); animation: slideUp .2s ease; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .modal-header h2 { font-family: 'DM Serif Display', serif; font-size: 1.2rem; }
+  .modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text3); padding: 0 4px; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 20px 24px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-group label { font-size: 0.78rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; }
+  .form-group input, .form-group select, .form-group textarea { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.9rem; background: var(--bg); outline: none; transition: border-color .2s; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent2); }
+  .section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); border-bottom: 2px solid var(--accent-light); padding-bottom: 4px; margin: 20px 0 12px; grid-column: 1 / -1; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+  .confirm-modal { max-width: 420px; }
+  .confirm-body { padding: 24px; text-align: center; }
+  .confirm-body .icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .confirm-body h3 { font-family: 'DM Serif Display', serif; font-size: 1.2rem; margin-bottom: 8px; }
+  .confirm-body p { color: var(--text2); font-size: 0.9rem; line-height: 1.5; }
+  .confirm-footer { padding: 0 24px 24px; display: flex; justify-content: center; gap: 12px; }
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--text3); }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+  .tab-bar { display: flex; gap: 4px; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tab { padding: 12px 18px; border: none; background: none; font-family: inherit; font-size: 0.88rem; font-weight: 500; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
+  .bulk-bar { display: none; background: var(--accent); color: white; padding: 10px 32px; align-items: center; gap: 14px; font-size: 0.9rem; font-weight: 500; }
+  .bulk-bar.visible { display: flex; }
+  .tbl th.col-check, .tbl td.col-check { width: 36px; text-align: center; padding: 10px 6px; }
+  .tbl input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+  .rate-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .rata-item { display: flex; align-items: center; gap: 10px; background: var(--surface2); border-radius: 8px; padding: 10px 14px; border: 1px solid var(--border); }
+  .rata-item .rata-label { font-size: 0.8rem; font-weight: 600; color: var(--text3); min-width: 56px; }
+  .rata-item .rata-val { font-size: 0.95rem; font-weight: 600; flex: 1; }
+  .rata-item .rata-date { font-size: 0.78rem; color: var(--text3); }
+  .rata-item.pagata { border-left: 3px solid var(--accent2); }
+  .rata-item.vuota { border-left: 3px solid #ddd; opacity:.6; }
+  .add-rata-form { background:var(--bg); border-radius:10px; padding:14px 16px; border:1.5px dashed var(--border); margin-top:12px; }
+  .freq-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px; }
+  .freq-box { background:var(--surface2); border-radius:10px; padding:14px; text-align:center; border:1px solid var(--border); }
+  .freq-box .fb-val { font-size:1.8rem; font-weight:700; }
+  .freq-box .fb-lbl { font-size:0.75rem; color:var(--text3); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
+  .freq-box.debito { background:var(--danger-light); border-color:var(--danger); }
+  .freq-box.debito .fb-val { color:var(--danger); }
+  .freq-box.ok { background:var(--accent-light); border-color:var(--accent2); }
+  .freq-box.ok .fb-val { color:var(--accent); }
+  .freq-lezioni-list { display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; margin-bottom:12px; }
+  .freq-lezione-item { display:flex; align-items:center; gap:10px; background:var(--surface2); padding:8px 12px; border-radius:8px; font-size:0.87rem; border:1px solid var(--border); }
+  .freq-lezione-item span { flex:1; }
+  .freq-lezione-item .fl-num { font-weight:700; min-width:24px; color:var(--text3); }
+  .freq-lezione-item .fl-date { color:var(--text3); font-size:0.78rem; }
+  .btn-icon { background:none; border:none; cursor:pointer; font-size:1rem; padding:2px 6px; opacity:.5; transition:opacity .15s; }
+  .btn-icon:hover { opacity:1; }
+  .btn-rata { background:var(--warning-light); color:var(--warning); border:1px solid #e6c76a; }
+  .btn-rata:hover { background:#fde68a; }
+  .btn-freq { background:#e8eaf6; color:#3949ab; border:1px solid #9fa8da; }
+  .btn-freq:hover { background:#c5cae9; }
+  .modal-section-title { font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text3); padding-bottom:6px; border-bottom:1px solid var(--border); margin-bottom:14px; }
+  .promo-student-list { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+  .promo-student-item { display: flex; align-items: center; gap: 10px; background: var(--surface2); border-radius: 8px; padding: 10px 14px; border: 1px solid var(--border); font-size: 0.88rem; }
+  .promo-student-item .pi-name { flex: 1; font-weight: 600; }
+  .promo-info-box { background: var(--accent-light); border: 1px solid var(--accent2); border-radius: 10px; padding: 12px 16px; font-size: 0.87rem; color: var(--accent); margin-bottom: 14px; line-height: 1.6; }
+  .promo-year-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .promo-year-row label { font-size: 0.82rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  .promo-year-row input { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.9rem; background: var(--bg); outline: none; width: 160px; }
+  .matricola-cell { display: flex; align-items: center; gap: 4px; }
+  .matricola-display { cursor: pointer; border-bottom: 1px dashed var(--border); padding: 1px 3px; border-radius: 3px; min-width: 24px; display: inline-block; }
+  .matricola-display:hover { background: var(--accent-light); border-color: var(--accent2); }
+  .matricola-input { width: 60px; padding: 2px 6px; border: 1.5px solid var(--accent2); border-radius: 6px; font-family: inherit; font-size: 0.87rem; background: var(--surface); outline: none; }
+  .save-toast { position: fixed; bottom: 28px; right: 28px; z-index: 999; background: var(--accent); color: white; padding: 12px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 500; box-shadow: var(--shadow-lg); opacity: 0; transform: translateY(12px); transition: all .25s ease; pointer-events: none; }
+  .save-toast.show { opacity: 1; transform: translateY(0); }
+  .op-modal { max-width: 340px; }
+  .op-modal .confirm-body { padding: 28px 24px 16px; }
+  .op-choices { display: flex; gap: 12px; justify-content: center; }
+  .op-btn { flex: 1; padding: 14px 10px; border-radius: 12px; border: 2.5px solid var(--border); background: var(--surface2); font-family: inherit; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all .15s; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .op-btn:hover { border-color: var(--accent2); background: var(--accent-light); }
+  .op-btn.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+  .op-btn .op-avatar { font-size: 2rem; line-height: 1; }
+  .op-btn .op-name { font-size: 0.9rem; }
+  .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+  .loading-spinner { width: 48px; height: 48px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 0.95rem; color: var(--text2); font-weight: 500; }
+  @media (max-width: 768px) { .stats-bar, .main, .toolbar, .tab-bar { padding-left: 16px; padding-right: 16px; } .form-grid { grid-template-columns: 1fr; } .tbl td:nth-child(n+5) { display: none; } .header { padding: 0 16px; } }
+  .promo-matricola-input { width: 64px; padding: 3px 7px; border: 1.5px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 0.85rem; background: var(--surface); outline: none; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:20px">
+  <div style="background:var(--surface);border-radius:20px;padding:48px 40px;box-shadow:var(--shadow-lg);text-align:center;max-width:380px;width:100%">
+    <div style="font-size:3rem;margin-bottom:12px">📚</div>
+    <h1 style="font-family:'DM Serif Display',serif;font-size:1.5rem;margin-bottom:6px">Gestione Pagamenti Scuola</h1>
+    <p style="color:var(--text3);font-size:0.88rem;margin-bottom:28px">Accedi con le credenziali fornite dall'amministratore</p>
+    <form id="loginForm" onsubmit="return false;" style="text-align:left;display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label for="loginUsername" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text2);margin-bottom:6px">Username</label>
+        <input type="text" id="loginUsername" autocomplete="username" placeholder="es. maestra1"
+          style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:0.95rem;background:var(--bg);outline:none"
+          onkeydown="if(event.key==='Enter') document.getElementById('loginPassword').focus()">
+      </div>
+      <div>
+        <label for="loginPassword" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text2);margin-bottom:6px">Password</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••"
+          style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:0.95rem;background:var(--bg);outline:none"
+          onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <button id="loginBtn" onclick="doLogin()" type="button" style="width:100%;padding:14px;border-radius:10px;border:none;background:var(--accent);color:white;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-top:6px">
+        🔑 Accedi
+      </button>
+    </form>
+    <div id="loginError" style="display:none;margin-top:16px;padding:10px 14px;background:var(--danger-light);color:var(--danger);border-radius:8px;font-size:0.85rem"></div>
+  </div>
+</div>
+
+<!-- APP CONTENT -->
+<div id="appContent" style="display:none">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Connessione al database...</div>
+</div>
+
+<div class="header">
+  <h1>📚 Gestione Pagamenti Scuola</h1>
+  <div class="header-right">
+    <div class="sync-indicator"><div class="sync-dot" id="syncDot"></div><span id="syncLabel">In sync</span></div>
+    <span class="year-badge" id="currentYearBadge">A.S. 2025–2026</span>
+    <span id="userInfo" style="font-size:0.82rem;background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px"></span>
+    <button onclick="doLogout()" class="btn btn-secondary btn-sm" style="background:rgba(255,255,255,0.15);color:white;border-color:rgba(255,255,255,0.3)">🚪 Esci</button>
+    <button class="btn btn-archive" onclick="showArchiveYearModal()">🗃 Archivia Anno</button>
+    <div style="position:relative;display:inline-block;" id="backupMenuWrap">
+      <button class="btn btn-secondary" onclick="toggleBackupMenu()" style="background:rgba(255,255,255,0.15);color:white;border-color:rgba(255,255,255,0.3)">💾 Backup ▾</button>
+      <div id="backupMenu" style="display:none;position:absolute;right:0;top:40px;background:white;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.18);min-width:220px;z-index:500;overflow:hidden;">
+        <div style="padding:8px 14px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;border-bottom:1px solid #eee;">Backup Manuale</div>
+        <button onclick="backupJSON();toggleBackupMenu()" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;cursor:pointer;font-size:0.88rem;display:flex;align-items:center;gap:10px;" onmouseenter="this.style.background='#f5f5f5'" onmouseleave="this.style.background='none'">📦 Scarica JSON completo</button>
+        <button onclick="backupCSV();toggleBackupMenu()" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;cursor:pointer;font-size:0.88rem;display:flex;align-items:center;gap:10px;" onmouseenter="this.style.background='#f5f5f5'" onmouseleave="this.style.background='none'">📊 Scarica CSV (Excel)</button>
+        <div style="padding:8px 14px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;border-top:1px solid #eee;border-bottom:1px solid #eee;">Ripristino</div>
+        <label style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;cursor:pointer;font-size:0.88rem;display:flex;align-items:center;gap:10px;" onmouseenter="this.style.background='#f5f5f5'" onmouseleave="this.style.background='none'">
+          📂 Ripristina da JSON
+          <input type="file" accept=".json" style="display:none" onchange="restoreFromJSON(event)">
+        </label>
+        <div style="padding:8px 14px;font-size:0.72rem;color:#888;border-top:1px solid #eee;">🕐 Ultimo backup: <span id="lastBackupLabel">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('studenti')">👥 Studenti</button>
+  <button class="tab" onclick="switchTab('archivio')">🗃 Archivio</button>
+  <button class="tab" onclick="switchTab('cestino')" id="cestinoTab">🗑 Cestino</button>
+</div>
+
+<div class="save-toast" id="saveToast"></div>
+
+<div class="bulk-bar" id="bulkBar">
+  <span id="bulkCount">0 selezionati</span>
+  <button class="btn btn-promote" onclick="openPromoteModal()">🎓 Passa ad Anno Successivo</button>
+  <button class="btn btn-retire" onclick="bulkRetire()">📤 Segna come Ritirati</button>
+  <button class="btn btn-danger" onclick="bulkDelete()">🗑 Sposta nel Cestino</button>
+  <button class="btn btn-secondary btn-sm" onclick="clearSelection()">✕ Deseleziona tutto</button>
+</div>
+
+<!-- MODAL PROMOZIONE -->
+<div class="modal-overlay" id="promoteModal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header"><h2>🎓 Passa ad Anno Successivo</h2><button class="modal-close" onclick="closeModal('promoteModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="promo-info-box">Gli studenti selezionati verranno copiati nel nuovo anno scolastico con il tag <strong>Continua</strong>.<br>I <strong>debiti e i crediti</strong> dell'anno corrente saranno riportati come saldo iniziale nel nuovo anno.</div>
+      <div class="promo-year-row"><label>Nuovo Anno Scolastico</label><input type="text" id="promoNewYear" placeholder="es. 2026–2027"></div>
+      <div class="modal-section-title" style="margin-bottom:0">Studenti selezionati</div>
+      <div class="promo-student-list" id="promoStudentList"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('promoteModal')">Annulla</button>
+      <button class="btn btn-promote" onclick="confirmPromote()">🎓 Conferma Promozione</button>
+    </div>
+  </div>
+</div>
+
+<div id="tab-studenti">
+  <div class="stats-bar" id="statsBar"></div>
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="🔍 Cerca per nome, cognome, classe..." oninput="renderTable()">
+    <select id="filterClasse" onchange="renderTable()"><option value="">Tutte le classi</option></select>
+    <select id="filterSaldo" onchange="renderTable()">
+      <option value="">Tutti i saldi</option>
+      <option value="debito">⚠️ In debito</option>
+      <option value="pari">✅ In pari</option>
+      <option value="credito">💙 Credito</option>
+    </select>
+    <select id="filterModalita" onchange="renderTable()"><option value="">Tutte le modalità</option></select>
+    <select id="filterCorso" onchange="renderTable()"><option value="">Tutti i corsi</option></select>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Nuovo Studente</button>
+    <button class="btn btn-secondary" onclick="exportCSV()">⬇ Esporta CSV</button>
+    <button class="btn btn-secondary" onclick="openCoursesModal()">⚙️ Corsi</button>
+    <button class="btn btn-secondary" onclick="openOperatoriModal()">👥 Personale</button>
+  </div>
+  <div class="main">
+    <div class="table-wrap">
+      <div class="table-header-row">
+        <span class="table-title">Elenco Studenti</span>
+        <span class="table-count" id="tableCount"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="tbl" id="mainTable">
+          <thead><tr>
+            <th class="col-check"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+            <th onclick="sortBy('matricola')">#</th>
+            <th onclick="sortBy('nome')">Nome</th>
+            <th onclick="sortBy('cognome')">Cognome</th>
+            <th onclick="sortBy('classe')">Classe</th>
+            <th onclick="sortBy('corso')">Corso</th>
+            <th>Genitore</th>
+            <th>Modalità</th>
+            <th>Quota Iscr.</th>
+            <th>Saldo Ord.</th>
+            <th>Saldo Libri</th>
+            <th>Saldo Extra</th>
+            <th>Saldo Totale</th>
+            <th>Stato</th>
+            <th>Ultima Mod.</th>
+            <th>Autore</th>
+            <th>Azioni</th>
+          </tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none"><div class="icon">🔍</div><p>Nessuno studente trovato.</p></div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-archivio" style="display:none"><div class="main" style="padding-top:24px"><div id="archiveContent"></div></div></div>
+<div id="tab-cestino" style="display:none"><div class="main" style="padding-top:24px"><div id="cestinoContent"></div></div></div>
+
+<!-- MODAL STUDENTE -->
+<div class="modal-overlay" id="studentModal">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Nuovo Studente</h2><button class="modal-close" onclick="closeModal('studentModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="section-title">📋 Dati Anagrafici</div>
+        <div class="form-group"><label>Matricola</label><input type="number" id="f_matricola" placeholder="es. 42"></div>
+        <div class="form-group"><label>Data di Nascita</label><input type="date" id="f_dataNascita"></div>
+        <div class="form-group"><label>Nome *</label><input type="text" id="f_nome" placeholder="Nome dello studente"></div>
+        <div class="form-group"><label>Cognome *</label><input type="text" id="f_cognome" placeholder="Cognome dello studente"></div>
+        <div class="form-group">
+          <label>Classe</label>
+          <select id="f_classe" onchange="updateSezione()">
+            <option value="">Seleziona...</option>
+            <optgroup label="Materna">
+              <option value="&lt; 2 года">&lt; 2 года</option>
+              <option value="раннего развития (2-3 года)">раннего развития (2-3 года)</option>
+              <option value="Младшая группа (3-4 года)">Младшая группа (3-4 года)</option>
+              <option value="Средняя группа (4-5 лет)">Средняя группа (4-5 лет)</option>
+              <option value="Старшая группа (5-6 лет)">Старшая группа (5-6 лет)</option>
+              <option value="Подготовительная группа (6-7 лет)">Подготовительная группа (6-7 лет)</option>
+            </optgroup>
+            <optgroup label="Scuola">
+              <option>1A</option><option>1Б</option><option>2</option><option>3</option>
+              <option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sezione</label>
+          <select id="f_sezione">
+            <option value="">Seleziona...</option>
+            <option value="Scuola/Школа">Scuola / Школа</option>
+            <option value="Materna/Детский сад">Materna / Детский сад</option>
+          </select>
+        </div>
+        <div class="section-title">👨‍👩‍👧 Contatti</div>
+        <div class="form-group full"><label>Genitore di Riferimento</label><input type="text" id="f_genitore" placeholder="Nome genitore"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="f_email" placeholder="email@esempio.com"></div>
+        <div class="form-group"><label>Telefono</label><input type="text" id="f_telefono" placeholder="+39 ..."></div>
+        <div class="section-title">💳 Pagamento Ordinario</div>
+        <div class="form-group"><label>Data Iscrizione</label><input type="date" id="f_dataIscrizione"></div>
+        <div class="form-group">
+          <label>Modalità Pagamento</label>
+          <select id="f_modalita" onchange="toggleFreqFields()">
+            <option value="">Seleziona...</option>
+            <option>Ritirato / Oтстранен от школы</option>
+            <option>Non definita / Не определено</option>
+            <option>Annuale / Годовой</option>
+            <option>Tre rate / Три взноса</option>
+            <option>Due rate / Два взноса</option>
+            <option>Prova / Пробный</option>
+            <option>Frequenza Libera / Свободное посещение</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Metodo di Pagamento</label>
+          <select id="f_metodo">
+            <option value="">Seleziona...</option>
+            <option>Contanti / Наличные</option>
+            <option>Versamento Bancario / Банковский депозит</option>
+            <option>Misto C-B / Смешанные Н & Б. д.</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Quota Iscrizione (€)</label><input type="number" id="f_quotaIscr" placeholder="0" step="0.01"></div>
+        <div class="form-group" id="fg_prezzoLezione" style="display:none"><label>Prezzo per Lezione (€)</label><input type="number" id="f_prezzoLezione" placeholder="35" step="0.01" value="35"></div>
+        <div class="form-group"><label>Rata 1 (€)</label><input type="number" id="f_rata1" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Data Rata 1</label><input type="date" id="f_dataRata1"></div>
+        <div class="form-group"><label>Rata 2 (€)</label><input type="number" id="f_rata2" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Data Rata 2</label><input type="date" id="f_dataRata2"></div>
+        <div class="form-group"><label>Rata 3 (€)</label><input type="number" id="f_rata3" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Data Rata 3</label><input type="date" id="f_dataRata3"></div>
+        <div class="form-group"><label>Totale Dovuto Ordinario (€)</label><input type="number" id="f_totaleDovuto" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Note Rate</label><input type="text" id="f_noteRate" placeholder="es. Rata 3 dovuta"></div>
+        <div class="section-title">📚 Libri</div>
+        <div class="form-group"><label>Versamento Libri 1 (€)</label><input type="number" id="f_libri1" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Data Versamento Libri 1</label><input type="date" id="f_dataLibri1"></div>
+        <div class="form-group"><label>Versamento Libri 2 (€)</label><input type="number" id="f_libri2" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Data Versamento Libri 2</label><input type="date" id="f_dataLibri2"></div>
+        <div class="form-group"><label>Totale Libri Dovuto (€)</label><input type="number" id="f_libriDovuto" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Metodo Pagamento Libri</label>
+          <select id="f_metodoLibri">
+            <option value="">Seleziona...</option>
+            <option>Contanti / Наличные</option>
+            <option>Versamento Bancario / Банковский депозит</option>
+            <option>Misto C-B / Смешанные Н & Б. д.</option>
+          </select>
+        </div>
+        <div class="section-title">🎨 Corsi Extra</div>
+        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="form-group"><label>Corso Extra 1</label><select id="f_corsoExtra1"><option value="">— Seleziona —</option></select></div>
+          <div class="form-group"><label>Versamento Extra 1 (€)</label><input type="number" id="f_extra1" placeholder="0" step="0.01"></div>
+          <div class="form-group"><label>Data Extra 1</label><input type="date" id="f_dataExtra1"></div>
+        </div>
+        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="form-group"><label>Corso Extra 2</label><select id="f_corsoExtra2"><option value="">— Seleziona —</option></select></div>
+          <div class="form-group"><label>Versamento Extra 2 (€)</label><input type="number" id="f_extra2" placeholder="0" step="0.01"></div>
+          <div class="form-group"><label>Data Extra 2</label><input type="date" id="f_dataExtra2"></div>
+        </div>
+        <div class="form-group"><label>Totale Corsi Extra Dovuto (€)</label><input type="number" id="f_extraDovuto" placeholder="0" step="0.01"></div>
+        <div class="section-title">📝 Note</div>
+        <div class="form-group full"><label>Note aggiuntive</label><textarea id="f_note" rows="3" placeholder="Note libere..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('studentModal')">Annulla</button>
+      <button class="btn btn-primary" onclick="saveStudent()">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal confirm-modal">
+    <div class="confirm-body">
+      <div class="icon" id="confirmIcon">⚠️</div>
+      <h3 id="confirmTitle">Conferma</h3>
+      <p id="confirmMsg">Sei sicuro?</p>
+    </div>
+    <div class="confirm-footer">
+      <button class="btn btn-secondary" onclick="closeModal('confirmModal')">Annulla</button>
+      <button class="btn btn-danger" id="confirmBtn">Conferma</button>
+    </div>
+  </div>
+</div>
+
+<!-- ARCHIVE YEAR MODAL -->
+<div class="modal-overlay" id="archiveYearModal">
+  <div class="modal confirm-modal">
+    <div class="confirm-body">
+      <div class="icon">🗃</div>
+      <h3>Archivia Anno Scolastico</h3>
+      <p>Verranno archiviati tutti i <strong id="archiveCount">0</strong> studenti dell'anno in corso.</p>
+      <div style="margin-top:16px"><input type="text" id="archiveYearLabel" value="2025–2026" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;text-align:center;width:140px"></div>
+    </div>
+    <div class="confirm-footer">
+      <button class="btn btn-secondary" onclick="closeModal('archiveYearModal')">Annulla</button>
+      <button class="btn btn-primary" onclick="archiveYear()">🗃 Archivia</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RATA -->
+<div class="modal-overlay" id="rataModal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><h2 id="rataModalTitle">Gestione Rate</h2><button class="modal-close" onclick="closeModal('rataModal')">✕</button></div>
+    <div class="modal-body" id="rataModalBody"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('rataModal')">Chiudi</button></div>
+  </div>
+</div>
+
+<!-- MODAL FREQUENZE -->
+<div class="modal-overlay" id="freqModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header"><h2 id="freqModalTitle">Frequenze Libere</h2><button class="modal-close" onclick="closeModal('freqModal')">✕</button></div>
+    <div class="modal-body" id="freqModalBody"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('freqModal')">Chiudi</button></div>
+  </div>
+</div>
+
+<!-- MODAL CORSI -->
+<div class="modal-overlay" id="coursesModal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header"><h2>⚙️ Gestione Corsi</h2><button class="modal-close" onclick="closeModal('coursesModal')">✕</button></div>
+    <div class="modal-body">
+      <div id="coursesListContainer" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:300px;overflow-y:auto"></div>
+      <div style="background:var(--bg);border-radius:10px;padding:14px 16px;border:1.5px dashed var(--border)">
+        <div class="modal-section-title">+ Aggiungi nuovo corso</div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input type="text" id="newCourseInput" placeholder="es. Arte / Изобразительное искусство" style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.9rem;background:var(--surface);outline:none" onkeydown="if(event.key==='Enter') addCourse()">
+          <button class="btn btn-primary" onclick="addCourse()">+ Aggiungi</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('coursesModal')">Chiudi</button></div>
+  </div>
+</div>
+
+<!-- MODAL OPERATORI -->
+<div class="modal-overlay" id="operatoriModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header"><h2>👥 Gestione Personale</h2><button class="modal-close" onclick="closeModal('operatoriModal')">✕</button></div>
+    <div class="modal-body">
+      <div id="operatoriListContainer" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+      <div style="background:var(--bg);border-radius:10px;padding:14px 16px;border:1.5px dashed var(--border)">
+        <div class="modal-section-title">+ Aggiungi operatore</div>
+        <div style="display:grid;grid-template-columns:1fr 80px 60px;gap:8px;margin-top:8px;align-items:end">
+          <div class="form-group" style="margin:0"><label>Nome</label><input type="text" id="newOpNome" placeholder="es. Maria" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.9rem;background:var(--surface);outline:none;width:100%"></div>
+          <div class="form-group" style="margin:0"><label>Sigla</label><input type="text" id="newOpSigla" placeholder="es. MR" maxlength="4" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.9rem;background:var(--surface);outline:none;width:100%;text-transform:uppercase"></div>
+          <div class="form-group" style="margin:0"><label>Emoji</label><input type="text" id="newOpAvatar" placeholder="👤" maxlength="2" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.9rem;background:var(--surface);outline:none;width:100%;text-align:center"></div>
+        </div>
+        <div style="margin-top:10px;text-align:right"><button class="btn btn-primary" onclick="addOperatore()">+ Aggiungi</button></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('operatoriModal')">Chiudi</button></div>
+  </div>
+</div>
+
+<!-- MODAL OPERATORE PICKER -->
+<div class="modal-overlay" id="operatorModal">
+  <div class="modal op-modal">
+    <div class="confirm-body">
+      <div class="icon" id="opModalIcon">✏️</div>
+      <h3>Chi sta modificando?</h3>
+      <p id="opModalDesc">Seleziona il tuo nome.</p>
+      <div class="op-choices" id="opChoices"></div>
+    </div>
+    <div class="confirm-footer" style="padding-top:0"><button class="btn btn-secondary" onclick="cancelOperator()">Annulla</button></div>
+  </div>
+</div>
+
+<!-- MODAL VISUALIZZA STUDENTE -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header"><h2 id="viewModalTitle">Scheda Studente</h2><button class="modal-close" onclick="closeModal('viewModal')">✕</button></div>
+    <div class="modal-body" id="viewModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('viewModal')">Chiudi</button>
+      <button class="btn btn-primary" id="viewModalEditBtn">✏️ Modifica</button>
+    </div>
+  </div>
+</div>
+
+<!-- CryptoJS per AES-256 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+<!-- SCHERMATA PASSWORD CIFRATURA -->
+<div id="encScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:998;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="background:var(--surface);border-radius:20px;padding:48px 40px;box-shadow:var(--shadow-lg);text-align:center;max-width:400px;width:100%">
+    <div style="font-size:3rem;margin-bottom:12px">🔐</div>
+    <h2 style="font-family:'DM Serif Display',serif;font-size:1.4rem;margin-bottom:8px">Password di Cifratura</h2>
+    <p style="color:var(--text2);font-size:0.88rem;margin-bottom:24px;line-height:1.5">Inserisci la tua password personale per decifrare i dati.<br><strong>Non è recuperabile se dimenticata.</strong></p>
+    <div id="encUserLabel" style="background:var(--accent-light);border:1px solid var(--accent2);border-radius:8px;padding:8px 14px;font-size:0.85rem;color:var(--accent);margin-bottom:16px;font-weight:600;"></div>
+    <input type="password" id="encPasswordInput" placeholder="Password di cifratura..."
+      style="width:100%;padding:12px 16px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:0.95rem;outline:none;margin-bottom:8px;text-align:center;letter-spacing:2px;"
+      onkeydown="if(event.key==='Enter') confirmEncPassword()">
+    <div id="encError" style="display:none;color:var(--danger);font-size:0.82rem;margin-bottom:12px;padding:8px;background:var(--danger-light);border-radius:8px;">❌ Password errata o dati corrotti.</div>
+    <div id="encFirstTime" style="display:none;background:var(--warning-light);border:1px solid var(--warning);border-radius:8px;padding:10px 14px;font-size:0.82rem;color:var(--warning);margin-bottom:12px;text-align:left;">
+      ⚠️ <strong>Prima configurazione:</strong> questa password cifrerà tutti i tuoi dati. Annotala in un posto sicuro — non è recuperabile!<br><br>
+      <input type="password" id="encPasswordConfirm" placeholder="Conferma password..."
+        style="width:100%;padding:10px 14px;border:1.5px solid var(--warning);border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;margin-top:8px;letter-spacing:2px;"
+        onkeydown="if(event.key==='Enter') confirmEncPassword()">
+    </div>
+    <button onclick="confirmEncPassword()" style="width:100%;padding:14px;border-radius:10px;border:none;background:var(--accent);color:white;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;">🔓 Accedi</button>
+    <button onclick="doLogout()" style="margin-top:10px;width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:none;font-family:inherit;font-size:0.85rem;cursor:pointer;color:var(--text2);">← Cambia account Google</button>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, getDocs, writeBatch, query, orderBy }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDqi8rK8a6d-N3Qs69luT1JAn17t2fSmqE",
+  authDomain: "quote-scuola.firebaseapp.com",
+  projectId: "quote-scuola",
+  storageBucket: "quote-scuola.firebasestorage.app",
+  messagingSenderId: "779005627481",
+  appId: "1:779005627481:web:c61c123e086584e9ba3548",
+  measurementId: "G-4H5D29WXHQ"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+const auth = getAuth(app);
+
+// Dominio fittizio usato per trasformare gli username in "email" per Firebase Auth.
+// Gli account vanno creati SOLO dalla Console Firebase (Authentication > Users)
+// con indirizzo "username@USER_DOMAIN" — non esiste una pagina di autoregistrazione.
+const USER_DOMAIN = 'quote-scuola.local';
+
+// ── Whitelist utenti autorizzati (username, senza dominio) ──
+// Deve corrispondere esattamente agli account creati in Firebase Console.
+const ALLOWED_USERS = [
+  'simone.reguzzi.93@gmail.com',
+  'accademiaweb2@gmail.com',
+];
+
+// ── Auth UI ──
+function showLoginScreen() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appContent').style.display = 'none';
+  hideLoading();
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appContent').style.display = 'block';
+}
+
+function usernameToEmail(username) {
+  return `${username.trim().toLowerCase()}@${USER_DOMAIN}`;
+}
+function emailToUsername(email) {
+  return (email || '').split('@')[0];
+}
+
+window.doLogin = async () => {
+  const usernameField = document.getElementById('loginUsername');
+  const passwordField = document.getElementById('loginPassword');
+  const username = usernameField.value.trim();
+  const password = passwordField.value;
+  const errorBox = document.getElementById('loginError');
+  errorBox.style.display = 'none';
+
+  if (!username || !password) {
+    errorBox.textContent = '⚠️ Inserisci username e password.';
+    errorBox.style.display = 'block';
+    return;
+  }
+  if (!ALLOWED_USERS.includes(username.toLowerCase())) {
+    errorBox.textContent = `⛔ Accesso negato. L'utente "${username}" non è autorizzato.`;
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Accesso in corso...';
+  try {
+    await signInWithEmailAndPassword(auth, usernameToEmail(username), password);
+    passwordField.value = '';
+  } catch(e) {
+    console.error('Errore login:', e);
+    let msg = 'Credenziali non valide.';
+    if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
+      msg = 'Username o password errati.';
+    } else if (e.code === 'auth/too-many-requests') {
+      msg = 'Troppi tentativi falliti. Riprova tra qualche minuto.';
+    }
+    errorBox.textContent = `❌ ${msg}`;
+    errorBox.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔑 Accedi';
+  }
+};
+
+window.doLogout = async () => {
+  if (!confirm('Vuoi disconnetterti?')) return;
+  await signOut(auth);
+};
+
+// ── Auth state ──
+onAuthStateChanged(auth, user => {
+  const username = user ? emailToUsername(user.email) : null;
+  if (user && ALLOWED_USERS.includes(username)) {
+    document.getElementById('userInfo').textContent = `👤 ${username}`;
+    showApp();
+    startListeners();
+  } else if (user) {
+    signOut(auth);
+    showLoginScreen();
+  } else {
+    showLoginScreen();
+  }
+});
+const COLS = {
+  students: 'students',
+  archive:  'archive',
+  cestino:  'cestino',
+  settings: 'settings',
+  courses:  'courses',
+  operatori:'operatori',
+};
+
+// ── Expose DB helpers to global scope ──
+window._db = db;
+window._fbModules = { collection, doc, onSnapshot, setDoc, deleteDoc, getDocs, writeBatch, query, orderBy };
+
+// ── Collections ──
+let unsubStudents, unsubCestino;
+
+function startListeners() {
+  setSyncState('syncing');
+
+  // Students
+  unsubStudents = onSnapshot(collection(db, COLS.students), async snap => {
+    const raw = [];
+    snap.forEach(d => raw.push({ id: d.id, ...d.data() }));
+    // Decifra tutti gli studenti
+    if (_encKey) {
+      students = await Promise.all(raw.map(s => decryptStudent(s, _encKey)));
+    } else {
+      students = raw;
+    }
+    setSyncState('ok');
+    populateFilters();
+    renderTable();
+    hideLoading();
+  }, err => { console.error(err); setSyncState('error'); hideLoading(); });
+
+  // Cestino
+  unsubCestino = onSnapshot(collection(db, COLS.cestino), snap => {
+    cestino = [];
+    snap.forEach(d => cestino.push({ id: d.id, ...d.data() }));
+    updateCestinoTabBadge();
+  });
+
+  // Archive
+  onSnapshot(collection(db, COLS.archive), snap => {
+    archive = [];
+    snap.forEach(d => archive.push({ id: d.id, ...d.data() }));
+  });
+
+  // Settings (currentYear, courses, operatori)
+  onSnapshot(doc(db, COLS.settings, 'global'), snap => {
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.currentYear) { currentYear = d.currentYear; document.getElementById('currentYearBadge').textContent = 'A.S. ' + currentYear; }
+      if (d.courses)    { courses = d.courses; populateFilters(); }
+      if (d.operatori)  { window._operatori = d.operatori; }
+    }
+  });
+}
+
+// ── Save helpers (global) ──
+window.fbSaveStudent = async (s) => {
+  setSyncState('syncing');
+  const { doc: fbDoc, setDoc: fbSet } = window._fbModules;
+  const id = String(s.id);
+  const data = { ...s, id };
+  await fbSet(fbDoc(db, COLS.students, id), data);
+  setSyncState('ok');
+};
+
+window.fbDeleteStudent = async (id) => {
+  const { doc: fbDoc, deleteDoc: fbDel } = window._fbModules;
+  await fbDel(fbDoc(db, COLS.students, String(id)));
+};
+
+window.fbSaveCestino = async (s) => {
+  const { doc: fbDoc, setDoc: fbSet } = window._fbModules;
+  await fbSet(fbDoc(db, COLS.cestino, String(s.id)), s);
+};
+
+window.fbDeleteCestino = async (id) => {
+  const { doc: fbDoc, deleteDoc: fbDel } = window._fbModules;
+  await fbDel(fbDoc(db, COLS.cestino, String(id)));
+};
+
+window.fbSaveSettings = async (data) => {
+  const { doc: fbDoc, setDoc: fbSet } = window._fbModules;
+  await fbSet(fbDoc(db, COLS.settings, 'global'), data, { merge: true });
+};
+
+window.fbSaveArchive = async (entry) => {
+  const { doc: fbDoc, setDoc: fbSet } = window._fbModules;
+  const id = entry.id || ('archive_' + Date.now());
+  entry.id = id;
+  await fbSet(fbDoc(db, COLS.archive, id), entry);
+};
+
+window.fbDeleteArchive = async (id) => {
+  const { doc: fbDoc, deleteDoc: fbDel } = window._fbModules;
+  await fbDel(fbDoc(db, COLS.archive, String(id)));
+};
+
+startListeners();
+</script>
+
+<script>
+// ═══════════════════════════════════════════
+//  CIFRATURA AES-256
+// ═══════════════════════════════════════════
+let _encKey = null; // chiave AES derivata dalla password utente
+let _currentUserEmail = null;
+
+// Campi da cifrare in ogni studente
+const ENCRYPTED_FIELDS = [
+  'nome','cognome','genitore','email','telefono','note','noteRate',
+  'totaleDovuto','quotaIscr','rata1','rata2','rata3',
+  'libri1','libri2','libriDovuto','extra1','extra2','extraDovuto',
+  'corsoExtra1','corsoExtra2','dataIscrizione','dataRata1','dataRata2','dataRata3',
+  'dataLibri1','dataLibri2','dataExtra1','dataExtra2','modalita','metodo',
+  'metodoLibri','classe','sezione','corso','dataNascita','prezzoLezione'
+];
+
+// Deriva chiave AES da password + email (salt)
+async function deriveKey(password, email) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits','deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode(email), iterations: 250000, hash: 'SHA-256' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt','decrypt']
+  );
+}
+
+// Cifra un valore stringa
+async function encryptValue(value, key) {
+  if (value === null || value === undefined || value === '' || value === 0) return value;
+  const str = String(value);
+  const enc = new TextEncoder();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(str));
+  const combined = new Uint8Array(iv.byteLength + encrypted.byteLength);
+  combined.set(iv, 0); combined.set(new Uint8Array(encrypted), iv.byteLength);
+  return 'ENC:' + btoa(String.fromCharCode(...combined));
+}
+
+// Decifra un valore
+async function decryptValue(value, key) {
+  if (!value || !String(value).startsWith('ENC:')) return value;
+  try {
+    const combined = Uint8Array.from(atob(String(value).slice(4)), c => c.charCodeAt(0));
+    const iv = combined.slice(0, 12);
+    const data = combined.slice(12);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+    return new TextDecoder().decode(decrypted);
+  } catch(e) { return value; }
+}
+
+// Cifra tutti i campi sensibili di uno studente
+async function encryptStudent(s, key) {
+  const enc = { ...s };
+  for (const f of ENCRYPTED_FIELDS) {
+    if (enc[f] !== undefined) enc[f] = await encryptValue(enc[f], key);
+  }
+  return enc;
+}
+
+// Decifra tutti i campi sensibili di uno studente
+async function decryptStudent(s, key) {
+  const dec = { ...s };
+  for (const f of ENCRYPTED_FIELDS) {
+    if (dec[f] !== undefined) dec[f] = await decryptValue(dec[f], key);
+  }
+  return dec;
+}
+
+// Verifica password: cifra un token di controllo e lo salva in Firebase
+// oppure verifica che il token salvato si decifri correttamente
+async function verifyOrSetPassword(email, password, isFirstTime) {
+  const key = await deriveKey(password, email);
+  const { doc: fbDoc, getDoc, setDoc } = window._fbModules;
+  const tokenRef = fbDoc(window._db, 'enc_tokens', email.replace('@','_at_').replace('.','_dot_'));
+  if (isFirstTime) {
+    // Prima volta: salva token cifrato
+    const token = await encryptValue('VALID_TOKEN_' + email, key);
+    await setDoc(tokenRef, { token, createdAt: new Date().toISOString() });
+    return key;
+  } else {
+    // Verifica token
+    const snap = await getDoc(tokenRef);
+    if (!snap.exists()) return null; // nessun token
+    const decrypted = await decryptValue(snap.data().token, key);
+    if (decrypted === 'VALID_TOKEN_' + email) return key;
+    return null; // password errata
+  }
+}
+
+// Mostra schermata password
+function showEncScreen(email, isFirstTime) {
+  _currentUserEmail = email;
+  document.getElementById('encUserLabel').textContent = '👤 ' + email;
+  document.getElementById('encScreen').style.display = 'flex';
+  document.getElementById('encFirstTime').style.display = isFirstTime ? 'block' : 'none';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appContent').style.display = 'none';
+  hideLoading();
+  setTimeout(() => document.getElementById('encPasswordInput')?.focus(), 100);
+}
+
+async function confirmEncPassword() {
+  const pwd = document.getElementById('encPasswordInput').value;
+  if (!pwd || pwd.length < 6) {
+    document.getElementById('encError').textContent = '❌ La password deve essere di almeno 6 caratteri.';
+    document.getElementById('encError').style.display = 'block'; return;
+  }
+  const isFirstTime = document.getElementById('encFirstTime').style.display !== 'none';
+  if (isFirstTime) {
+    const confirm = document.getElementById('encPasswordConfirm').value;
+    if (pwd !== confirm) {
+      document.getElementById('encError').textContent = '❌ Le password non coincidono.';
+      document.getElementById('encError').style.display = 'block'; return;
+    }
+  }
+  document.getElementById('encError').style.display = 'none';
+  const btn = document.querySelector('#encScreen button');
+  btn.textContent = '⏳ Verifica in corso...'; btn.disabled = true;
+  try {
+    const key = await verifyOrSetPassword(_currentUserEmail, pwd, isFirstTime);
+    if (!key) {
+      document.getElementById('encError').textContent = '❌ Password errata. Riprova.';
+      document.getElementById('encError').style.display = 'block';
+      btn.textContent = '🔓 Accedi'; btn.disabled = false;
+      document.getElementById('encPasswordInput').value = '';
+      document.getElementById('encPasswordInput').focus();
+      return;
+    }
+    _encKey = key;
+    document.getElementById('encScreen').style.display = 'none';
+    document.getElementById('appContent').style.display = 'block';
+    startListeners();
+  } catch(e) {
+    document.getElementById('encError').textContent = '❌ Errore durante la verifica. Riprova.';
+    document.getElementById('encError').style.display = 'block';
+    btn.textContent = '🔓 Accedi'; btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let students = [], archive = [], cestino = [], courses = [], currentYear = '2025–2026';
+let editingId = null, sortField = 'matricola', sortAsc = true;
+let rataStudentId = null, freqStudentId = null;
+let selectedIds = new Set();
+window._operatori = null;
+
+function getDefaultCourses() {
+  return ['Lingua Russa / Русский язык','Matematica / Математика','Letteratura / Литература',
+    'Storia / История','Scienze / Естествознание','Arte / Изобразительное искусство',
+    'Musica / Музыка','Educazione Fisica / Физкультура'];
+}
+
+function getDefaultOperatori() {
+  return [{ nome:'Simone', sigla:'SR', avatar:'👨‍💼' }, { nome:'Svetlana', sigla:'SS', avatar:'👩‍💼' }];
+}
+
+function getOperatori() {
+  return window._operatori || getDefaultOperatori();
+}
+
+// ── Sync UI ──
+function setSyncState(state) {
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+  lbl.textContent = state === 'syncing' ? 'Sincronizzando...' : state === 'error' ? 'Errore sync' : 'In sync';
+}
+
+function hideLoading() {
+  const ov = document.getElementById('loadingOverlay');
+  if (ov) ov.style.display = 'none';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('saveToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── Save to Firebase ──
+async function saveStudent(studentObj) {
+  if (window.fbSaveStudent) await window.fbSaveStudent(studentObj);
+}
+async function deleteStudentFb(id) {
+  if (window.fbDeleteStudent) await window.fbDeleteStudent(id);
+}
+async function saveSettings() {
+  if (window.fbSaveSettings) await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori() });
+}
+
+// ═══════════════════════════════════════════
+//  CALCULATIONS
+// ═══════════════════════════════════════════
+function isFreqLibera(s) { return s.modalita && s.modalita.includes('Libera'); }
+
+function calcSaldoOrdinario(s) {
+  if (isFreqLibera(s)) {
+    const prezzoLezione = parseFloat(s.prezzoLezione)||35;
+    const versato = (parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
+    const pagate = prezzoLezione>0 ? versato/prezzoLezione : 0;
+    const diff = (s.lezioni||[]).length - pagate;
+    return diff<=0 ? 0 : -(diff*prezzoLezione);
+  }
+  const versato = (parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
+  const dovuto  = parseFloat(s.totaleDovuto)||0;
+  return dovuto===0 ? 0 : versato-dovuto;
+}
+function calcSaldoLibri(s) {
+  const versato=(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0);
+  const dovuto=parseFloat(s.libriDovuto)||0;
+  return dovuto===0?0:versato-dovuto;
+}
+function calcSaldoExtra(s) {
+  const versato=(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0);
+  const dovuto=parseFloat(s.extraDovuto)||0;
+  return dovuto===0?0:versato-dovuto;
+}
+function calcSaldoTotale(s) { return calcSaldoOrdinario(s)+calcSaldoLibri(s)+calcSaldoExtra(s); }
+
+function fmtEuro(v) {
+  if(v===0) return '<span class="saldo-zero">€ 0</span>';
+  if(v>0)   return `<span class="saldo-pos">+€ ${v.toFixed(2)}</span>`;
+  return `<span class="saldo-neg">-€ ${Math.abs(v).toFixed(2)}</span>`;
+}
+
+function fmtDate(d) {
+  if(!d) return '';
+  const p=d.split('-');
+  return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+}
+
+// ═══════════════════════════════════════════
+//  FILTERS & SORT
+// ═══════════════════════════════════════════
+const CLASSI_MATERNA=['< 2 года','раннего развития (2-3 года)','Младшая группа (3-4 года)','Средняя группа (4-5 лет)','Старшая группа (5-6 лет)','Подготовительная группа (6-7 лет)'];
+const CLASSI_SCUOLA=['1A','1Б','2','3','4','5','6','7','8','9'];
+
+function updateSezione() {
+  const cl=document.getElementById('f_classe').value;
+  const sel=document.getElementById('f_sezione');
+  if(CLASSI_MATERNA.includes(cl)) sel.value='Materna/Детский сад';
+  else if(CLASSI_SCUOLA.includes(cl)) sel.value='Scuola/Школа';
+}
+
+function getFiltered() {
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  const fc=document.getElementById('filterClasse').value;
+  const fs=document.getElementById('filterSaldo').value;
+  const fm=document.getElementById('filterModalita').value;
+  const fco=document.getElementById('filterCorso').value;
+  return students.filter(s => {
+    const matchQ=!q||`${s.nome} ${s.cognome} ${s.classe} ${s.genitore||''} ${s.telefono||''}`.toLowerCase().includes(q);
+    const matchC=!fc||s.classe===fc;
+    const matchM=!fm||s.modalita===fm;
+    const matchCo=!fco||s.corso===fco;
+    let matchS=true;
+    if(fs){ const sT=calcSaldoTotale(s); if(fs==='debito') matchS=sT<0; if(fs==='pari') matchS=sT===0; if(fs==='credito') matchS=sT>0; }
+    return matchQ&&matchC&&matchM&&matchCo&&matchS;
+  });
+}
+
+function getSorted(list) {
+  return [...list].sort((a,b) => {
+    let va=a[sortField], vb=b[sortField];
+    if(sortField==='saldo'){va=calcSaldoTotale(a);vb=calcSaldoTotale(b);}
+    if(sortField==='_lastEdit'){va=(a.changelog&&a.changelog[0])?a.changelog[0].ts:'';vb=(b.changelog&&b.changelog[0])?b.changelog[0].ts:'';}
+    if(typeof va==='string') va=va.toLowerCase();
+    if(typeof vb==='string') vb=vb.toLowerCase();
+    if(va<vb) return sortAsc?-1:1;
+    if(va>vb) return sortAsc?1:-1;
+    return 0;
+  });
+}
+
+function sortBy(field) {
+  if(sortField===field) sortAsc=!sortAsc; else{sortField=field;sortAsc=true;}
+  renderTable();
+}
+
+function populateFilters() {
+  const allClasses=[...CLASSI_MATERNA,...CLASSI_SCUOLA];
+  const usedClasses=allClasses.filter(c=>students.some(s=>s.classe===c));
+  const extraClasses=[...new Set(students.map(s=>s.classe).filter(Boolean))].filter(c=>!allClasses.includes(c));
+  const sel=document.getElementById('filterClasse'); const cur=sel.value;
+  sel.innerHTML='<option value="">Tutte le classi</option>'
+    +(usedClasses.some(c=>CLASSI_MATERNA.includes(c))?`<optgroup label="Materna">${CLASSI_MATERNA.filter(c=>usedClasses.includes(c)).map(c=>`<option value="${c}">${c}</option>`).join('')}</optgroup>`:'')
+    +(usedClasses.some(c=>CLASSI_SCUOLA.includes(c))?`<optgroup label="Scuola">${CLASSI_SCUOLA.filter(c=>usedClasses.includes(c)).map(c=>`<option value="${c}">${c}</option>`).join('')}</optgroup>`:'')
+    +extraClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+  sel.value=cur;
+  const mods=[...new Set(students.map(s=>s.modalita).filter(Boolean))].sort();
+  const selM=document.getElementById('filterModalita'); const curM=selM.value;
+  selM.innerHTML='<option value="">Tutte le modalità</option>'+mods.map(m=>`<option value="${m}">${m}</option>`).join(''); selM.value=curM;
+  const selCo=document.getElementById('filterCorso'); const curCo=selCo.value;
+  selCo.innerHTML='<option value="">Tutti i corsi</option>'+courses.map(c=>`<option value="${c}">${c}</option>`).join(''); selCo.value=curCo;
+  ['f_corsoExtra1','f_corsoExtra2'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const prev=el.value;
+    el.innerHTML='<option value="">— Seleziona —</option>'+courses.map(c=>`<option value="${c}">${c}</option>`).join(''); el.value=prev;
+  });
+}
+
+// ═══════════════════════════════════════════
+//  STATS & TABLE
+// ═══════════════════════════════════════════
+function renderStats() {
+  const total=students.length;
+  const inDebito=students.filter(s=>calcSaldoTotale(s)<0).length;
+  const inPari=students.filter(s=>calcSaldoTotale(s)===0).length;
+  const totV=students.reduce((a,s)=>a+(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0)+(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0)+(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0),0);
+  const totD=students.reduce((a,s)=>a+(parseFloat(s.totaleDovuto)||0)+(parseFloat(s.libriDovuto)||0)+(parseFloat(s.extraDovuto)||0),0);
+  document.getElementById('statsBar').innerHTML=`
+    <div class="stat-card"><div class="stat-label">Studenti Totali</div><div class="stat-value">${total}</div></div>
+    <div class="stat-card danger"><div class="stat-label">In Debito</div><div class="stat-value">${inDebito}</div></div>
+    <div class="stat-card"><div class="stat-label">In Pari</div><div class="stat-value">${inPari}</div></div>
+    <div class="stat-card"><div class="stat-label">Totale Versato</div><div class="stat-value euro">${totV.toFixed(0)}</div></div>
+    <div class="stat-card warn"><div class="stat-label">Totale Dovuto</div><div class="stat-value euro">${totD.toFixed(0)}</div></div>
+    <div class="stat-card ${(totV-totD)<0?'danger':''}"><div class="stat-label">Saldo Totale</div><div class="stat-value euro">${(totV-totD).toFixed(0)}</div></div>`;
+}
+
+function renderTable() {
+  renderStats();
+  const filtered=getSorted(getFiltered());
+  const tbody=document.getElementById('tableBody');
+  const empty=document.getElementById('emptyState');
+  document.getElementById('tableCount').textContent=`${filtered.length} studenti`;
+  if(filtered.length===0){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=filtered.map(s=>{
+    const sO=calcSaldoOrdinario(s),sL=calcSaldoLibri(s),sE=calcSaldoExtra(s),sT=sO+sL+sE;
+    let statoBadge='';
+    if(s.ritirato) statoBadge='<span class="badge badge-orange">📤 Ritirato</span>';
+    else if(sT<0) statoBadge='<span class="badge badge-red">⚠️ Debito</span>';
+    else if(sT===0) statoBadge='<span class="badge badge-green">✅ In pari</span>';
+    else statoBadge='<span class="badge badge-blue">💙 Credito</span>';
+    const modalBadge=s.modalita?`<span class="badge badge-gray" style="font-size:0.72rem">${s.modalita.split('/')[0].trim()}</span>`:'–';
+    const lastEntry=s.changelog&&s.changelog[0];
+    const lastDate=lastEntry?new Date(lastEntry.ts).toLocaleDateString('it-IT'):'–';
+    const op=lastEntry?getOperatori().find(o=>o.nome===lastEntry.op):null;
+    const authorBadge=op?`<span style="font-size:0.78rem;font-weight:700;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 6px">${op.sigla}</span>`:(lastEntry?`<span style="font-size:0.78rem;color:var(--text3)">${lastEntry.op}</span>`:'–');
+    return `<tr style="${s.ritirato?'opacity:0.65':''};cursor:pointer" onclick="if(!event.target.closest('button,input')) openViewModal('${s.id}')">
+      <td class="col-check"><input type="checkbox" class="row-check" data-id="${s.id}" onchange="onRowCheck()"></td>
+      <td><span class="matricola-display" onclick="startEditMatricola('${s.id}',this)">${s.matricola||'–'}</span></td>
+      <td><strong>${s.nome}</strong></td>
+      <td>${s.cognome}</td>
+      <td><span class="badge badge-blue">${s.classe||'–'}</span></td>
+      <td>${s.corso?`<span class="badge badge-green" style="font-size:0.72rem">${s.corso.split('/')[0].trim()}</span>`:'–'}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.genitore||'–'}</td>
+      <td>${modalBadge}</td>
+      <td>€ ${parseFloat(s.quotaIscr)||0}</td>
+      <td>${fmtEuro(sO)}</td>
+      <td>${fmtEuro(sL)}</td>
+      <td>${fmtEuro(sE)}</td>
+      <td><strong>${fmtEuro(sT)}</strong></td>
+      <td>${statoBadge}</td>
+      <td style="white-space:nowrap;font-size:0.8rem;color:var(--text3)">${lastDate}</td>
+      <td style="text-align:center">${authorBadge}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-rata btn-sm" onclick="openRataModal('${s.id}')">💶</button>
+        ${s.modalita&&s.modalita.includes('Libera')?`<button class="btn btn-freq btn-sm" onclick="openFreqModal('${s.id}')">📋</button>`:''}
+        <button class="btn btn-secondary btn-sm" onclick="openEditModal('${s.id}')">✏️</button>
+        ${s.ritirato
+          ?`<button class="btn btn-secondary btn-sm" onclick="toggleRetire('${s.id}')" style="background:#e8f5e9;color:#2d6a4f">↩️</button>`
+          :`<button class="btn btn-retire btn-sm" onclick="toggleRetire('${s.id}')">📤</button>`}
+        <button class="btn btn-danger btn-sm" onclick="confirmDelete('${s.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+//  MODAL HELPERS
+// ═══════════════════════════════════════════
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+const fields=['matricola','nome','cognome','classe','sezione','corso','dataNascita','genitore','email','telefono',
+  'dataIscrizione','modalita','metodo','quotaIscr','rata1','dataRata1','rata2','dataRata2','rata3','dataRata3',
+  'noteRate','totaleDovuto','libri1','dataLibri1','libri2','dataLibri2','metodoLibri','libriDovuto',
+  'corsoExtra1','extra1','dataExtra1','corsoExtra2','extra2','dataExtra2','extraDovuto','prezzoLezione','note'];
+
+function clearForm(){fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el)el.value='';});}
+
+function getNextMatricola(){
+  const used=new Set();
+  students.forEach(s=>{if(s.matricola)used.add(parseInt(s.matricola));});
+  archive.forEach(e=>e.studenti&&e.studenti.forEach(s=>{if(s.matricola)used.add(parseInt(s.matricola));}));
+  let n=1; while(used.has(n))n++; return n;
+}
+
+function openAddModal(){
+  editingId=null; clearForm();
+  document.getElementById('modalTitle').textContent='Nuovo Studente';
+  const m=document.getElementById('f_matricola'); if(m) m.value=getNextMatricola();
+  openModal('studentModal');
+}
+
+function openEditModal(id){
+  editingId=id;
+  const s=students.find(x=>String(x.id)===String(id));
+  if(!s) return;
+  document.getElementById('modalTitle').textContent=`Modifica: ${s.nome} ${s.cognome}`;
+  fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el&&s[f]!==undefined)el.value=s[f];});
+  openModal('studentModal');
+}
+
+function openViewModal(id){
+  const s=students.find(x=>String(x.id)===String(id)); if(!s) return;
+  document.getElementById('viewModalTitle').textContent=`${s.nome} ${s.cognome}`;
+  document.getElementById('viewModalEditBtn').onclick=()=>{closeModal('viewModal');openEditModal(id);};
+  const sO=calcSaldoOrdinario(s),sL=calcSaldoLibri(s),sE=calcSaldoExtra(s),sT=sO+sL+sE;
+  const row=(l,v)=>v?`<tr><td style="color:var(--text3);font-size:0.8rem;padding:6px 10px;width:40%">${l}</td><td style="padding:6px 10px;font-size:0.88rem">${v}</td></tr>`:'';
+  document.getElementById('viewModalBody').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div><div class="modal-section-title">📋 Anagrafica</div><table style="width:100%;border-collapse:collapse">
+        ${row('Matricola',s.matricola||'–')}${row('Nome',`<strong>${s.nome} ${s.cognome}</strong>`)}
+        ${row('Classe',s.classe||'–')}${row('Corso',s.corso||'–')}</table></div>
+      <div><div class="modal-section-title">👨‍👩‍👧 Contatti</div><table style="width:100%;border-collapse:collapse">
+        ${row('Genitore',s.genitore||'–')}${row('Telefono',s.telefono||'–')}${row('Email',s.email||'–')}</table></div>
+      <div><div class="modal-section-title">💳 Pagamento</div><table style="width:100%;border-collapse:collapse">
+        ${row('Modalità',s.modalita||'–')}${row('Metodo',s.metodo||'–')}
+        ${row('Rata 1',s.rata1?`€ ${parseFloat(s.rata1).toFixed(2)}${s.dataRata1?' — '+fmtDate(s.dataRata1):''}`:'')}
+        ${row('Totale dovuto',s.totaleDovuto?`€ ${parseFloat(s.totaleDovuto).toFixed(2)}`:'')}
+      </table></div>
+      <div><div class="modal-section-title">📊 Saldi</div><table style="width:100%;border-collapse:collapse">
+        ${row('Saldo Ordinario',fmtEuro(sO))}${row('Saldo Libri',fmtEuro(sL))}
+        ${row('Saldo Extra',fmtEuro(sE))}${row('Saldo Totale',`<strong>${fmtEuro(sT)}</strong>`)}</table>
+        ${s.note?`<div style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:8px;font-size:0.85rem"><strong>Note:</strong> ${s.note}</div>`:''}
+      </div>
+    </div>`;
+  openModal('viewModal');
+}
+
+async function saveStudent() {
+  const nome=document.getElementById('f_nome').value.trim();
+  const cognome=document.getElementById('f_cognome').value.trim();
+  if(!nome||!cognome){alert('Nome e Cognome sono obbligatori.');return;}
+  const isNew=!editingId;
+  const operatore=await requireOperator(isNew?`Nuovo studente: ${nome} ${cognome}`:`Modifica: ${nome} ${cognome}`,isNew?'➕':'✏️');
+  if(!operatore) return;
+  const numFields=['matricola','quotaIscr','rata1','rata2','rata3','totaleDovuto','libri1','libri2','libriDovuto','extra1','extra2','extraDovuto'];
+  const obj={id:editingId||String(Date.now())};
+  fields.forEach(f=>{const el=document.getElementById('f_'+f);if(!el)return;obj[f]=numFields.includes(f)?(parseFloat(el.value)||0):el.value;});
+  if(editingId){
+    const existing=students.find(x=>String(x.id)===String(editingId));
+    if(existing){obj.lezioni=existing.lezioni||[];obj.changelog=existing.changelog||[];}
+  } else {
+    obj.lezioni=[];obj.changelog=[];
+  }
+  addChangelogEntry(obj,operatore,isNew?`Nuovo studente: ${nome} ${cognome}`:`Modifica dati: ${nome} ${cognome}`);
+  await window.fbSaveStudent(obj);
+  closeModal('studentModal');
+  showToast(isNew?'✅ Studente aggiunto!':'✅ Modifiche salvate!');
+}
+
+function toggleFreqFields(){
+  const m=document.getElementById('f_modalita').value;
+  document.getElementById('fg_prezzoLezione').style.display=m.includes('Libera')?'':'none';
+}
+
+// ═══════════════════════════════════════════
+//  DELETE / CESTINO
+// ═══════════════════════════════════════════
+function confirmDelete(id){
+  const s=students.find(x=>String(x.id)===String(id));
+  document.getElementById('confirmTitle').textContent='Sposta nel Cestino';
+  document.getElementById('confirmMsg').innerHTML=`Spostare <strong>${s.nome} ${s.cognome}</strong> nel cestino?`;
+  document.getElementById('confirmBtn').onclick=()=>{closeModal('confirmModal');doDelete(id);};
+  openModal('confirmModal');
+}
+
+async function doDelete(id){
+  const s=students.find(x=>String(x.id)===String(id)); if(!s) return;
+  const operatore=await requireOperator(`Cestino: ${s.nome} ${s.cognome}`,'🗑️'); if(!operatore) return;
+  addChangelogEntry(s,operatore,'Spostato nel cestino');
+  s._deletedAt=Date.now(); s._deletedBy=operatore;
+  await window.fbSaveCestino(s);
+  await window.fbDeleteStudent(id);
+  showToast('🗑 Spostato nel cestino');
+}
+
+async function bulkDelete(){
+  if(selectedIds.size===0) return;
+  const sel=[...selectedIds].map(id=>students.find(x=>String(x.id)===String(id))).filter(Boolean);
+  if(!confirm(`Spostare ${sel.length} studenti nel cestino?`)) return;
+  const operatore=await requireOperator(`Cestino multiplo: ${sel.length} studenti`,'🗑️'); if(!operatore) return;
+  for(const s of sel){
+    addChangelogEntry(s,operatore,'Cestino (bulk)');
+    s._deletedAt=Date.now();s._deletedBy=operatore;
+    await window.fbSaveCestino(s);
+    await window.fbDeleteStudent(s.id);
+  }
+  clearSelection();
+  showToast(`🗑 ${sel.length} studenti nel cestino`);
+}
+
+function updateCestinoTabBadge(){
+  const tab=document.getElementById('cestinoTab');
+  if(!tab) return;
+  tab.textContent=cestino.length>0?`🗑 Cestino (${cestino.length})`:'🗑 Cestino';
+  tab.style.color=cestino.length>0?'var(--danger)':'';
+}
+
+function renderCestino(){
+  const el=document.getElementById('cestinoContent');
+  if(cestino.length===0){el.innerHTML=`<div class="empty-state"><div class="icon">🗑</div><p>Il cestino è vuoto.</p></div>`;return;}
+  const now=Date.now(),DAY=86400000;
+  el.innerHTML=`<div class="table-wrap"><div class="table-header-row"><span class="table-title">🗑 Cestino</span><span class="table-count">${cestino.length} elementi</span></div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>#</th><th>Nome</th><th>Cognome</th><th>Eliminato il</th><th>Scade tra</th><th>Azioni</th></tr></thead>
+    <tbody>${cestino.map((s,i)=>{
+      const dd=s._deletedAt?new Date(s._deletedAt).toLocaleDateString('it-IT'):'–';
+      const rem=s._deletedAt?Math.max(0,Math.ceil((s._deletedAt+30*DAY-now)/DAY)):0;
+      const urg=rem<=3?'color:var(--danger);font-weight:700':rem<=7?'color:var(--warning)':'color:var(--text3)';
+      return `<tr><td>${s.matricola||'–'}</td><td><strong>${s.nome}</strong></td><td>${s.cognome}</td>
+        <td>${dd}</td><td style="${urg}">${rem} gg</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="restoreFromCestino('${s.id}')">↩️ Ripristina</button>
+        <button class="btn btn-danger btn-sm" onclick="permanentDelete('${s.id}')">🗑 Elimina</button></td></tr>`;
+    }).join('')}</tbody></table></div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+      <button class="btn btn-danger" onclick="emptyTrush()">🗑 Svuota cestino</button></div></div>`;
+}
+
+async function restoreFromCestino(id){
+  const s=cestino.find(x=>String(x.id)===String(id)); if(!s) return;
+  const operatore=await requireOperator(`Ripristina: ${s.nome} ${s.cognome}`,'↩️'); if(!operatore) return;
+  delete s._deletedAt; delete s._deletedBy;
+  addChangelogEntry(s,operatore,'Ripristinato dal cestino');
+  await window.fbSaveStudent(s);
+  await window.fbDeleteCestino(id);
+  showToast('✅ Studente ripristinato');
+}
+
+async function permanentDelete(id){
+  const s=cestino.find(x=>String(x.id)===String(id)); if(!s) return;
+  if(!confirm(`Eliminare definitivamente ${s.nome} ${s.cognome}?`)) return;
+  const operatore=await requireOperator(`Elimina definitivamente: ${s.nome} ${s.cognome}`,'⛔'); if(!operatore) return;
+  await window.fbDeleteCestino(id);
+  showToast('🗑 Eliminato definitivamente');
+  renderCestino();
+}
+
+async function emptyTrush(){
+  if(cestino.length===0) return;
+  if(!confirm(`Eliminare definitivamente tutti i ${cestino.length} elementi nel cestino?`)) return;
+  const operatore=await requireOperator(`Svuota cestino`,'⛔'); if(!operatore) return;
+  for(const s of cestino) await window.fbDeleteCestino(s.id);
+  showToast('🗑 Cestino svuotato');
+}
+
+// ═══════════════════════════════════════════
+//  ARCHIVE
+// ═══════════════════════════════════════════
+function showArchiveYearModal(){
+  document.getElementById('archiveCount').textContent=students.length;
+  document.getElementById('archiveYearLabel').value=currentYear;
+  openModal('archiveYearModal');
+}
+
+async function archiveYear(){
+  const label=document.getElementById('archiveYearLabel').value.trim()||currentYear;
+  const operatore=await requireOperator(`Archivia anno: ${label}`,'🗃'); if(!operatore) return;
+  const entry={id:'archive_'+Date.now(),anno:label,data:new Date().toLocaleDateString('it-IT'),studenti:JSON.parse(JSON.stringify(students))};
+  await window.fbSaveArchive(entry);
+  for(const s of students) await window.fbDeleteStudent(s.id);
+  currentYear=nextYear(label);
+  await saveSettings();
+  document.getElementById('currentYearBadge').textContent='A.S. '+currentYear;
+  closeModal('archiveYearModal');
+  showToast(`✅ Anno ${label} archiviato!`);
+}
+
+function nextYear(label){
+  const m=label.match(/(\d{4})[–\-](\d{4})/);
+  return m?`${parseInt(m[1])+1}–${parseInt(m[2])+1}`:label;
+}
+
+function renderArchive(){
+  const el=document.getElementById('archiveContent');
+  if(archive.length===0){el.innerHTML=`<div class="empty-state"><div class="icon">🗃</div><p>Nessun anno archiviato.</p></div>`;return;}
+  el.innerHTML=archive.map(entry=>{
+    const inD=entry.studenti?entry.studenti.filter(s=>calcSaldoTotale(s)<0).length:0;
+    const totV=entry.studenti?entry.studenti.reduce((a,s)=>a+(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0)+(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0)+(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0),0):0;
+    return `<div class="table-wrap" style="margin-bottom:20px">
+      <div class="table-header-row"><span class="table-title">🗃 A.S. ${entry.anno}</span>
+      <span class="table-count">Archiviato il ${entry.data} · ${entry.studenti?entry.studenti.length:0} studenti · ${inD} in debito · Versato: € ${totV.toFixed(0)}</span></div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>#</th><th>Nome</th><th>Cognome</th><th>Classe</th><th>Saldo Tot.</th><th>Stato</th></tr></thead>
+      <tbody>${(entry.studenti||[]).map(s=>{const sT=calcSaldoTotale(s);const badge=sT<0?'<span class="badge badge-red">⚠️ Debito</span>':sT===0?'<span class="badge badge-green">✅ In pari</span>':'<span class="badge badge-blue">💙 Credito</span>';
+        return `<tr><td>${s.matricola||'–'}</td><td><strong>${s.nome}</strong></td><td>${s.cognome}</td><td><span class="badge badge-blue">${s.classe||'–'}</span></td><td><strong>${fmtEuro(sT)}</strong></td><td>${badge}</td></tr>`;
+      }).join('')}</tbody></table></div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-danger btn-sm" onclick="deleteArchive('${entry.id}')">🗑 Elimina</button></div></div>`;
+  }).join('');
+}
+
+async function deleteArchive(id){
+  if(!confirm('Eliminare questo archivio?')) return;
+  const operatore=await requireOperator(`Elimina archivio`,'🗑️'); if(!operatore) return;
+  await window.fbDeleteArchive(id);
+  renderArchive();
+}
+
+// ═══════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  ['studenti','archivio','cestino'].forEach((t,i)=>{
+    document.querySelectorAll('.tab')[i].classList[t===tab?'add':'remove']('active');
+    document.getElementById('tab-'+t).style.display=t===tab?'':'none';
+  });
+  if(tab==='archivio') renderArchive();
+  if(tab==='cestino')  renderCestino();
+}
+
+// ═══════════════════════════════════════════
+//  RATA MODAL
+// ═══════════════════════════════════════════
+function openRataModal(id){
+  rataStudentId=String(id);
+  const s=students.find(x=>String(x.id)===String(id)); if(!s) return;
+  document.getElementById('rataModalTitle').textContent=`Rate — ${s.nome} ${s.cognome}`;
+  renderRataModal(s); openModal('rataModal');
+}
+
+function renderRataModal(s){
+  const versato=(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
+  const dovuto=parseFloat(s.totaleDovuto)||0;
+  const saldo=versato-dovuto;
+  const rateItems=[{label:'Iscr.',val:s.quotaIscr,data:s.dataIscrizione},{label:'Rata 1',val:s.rata1,data:s.dataRata1},{label:'Rata 2',val:s.rata2,data:s.dataRata2},{label:'Rata 3',val:s.rata3,data:s.dataRata3}];
+  const rateHtml=rateItems.map((r,i)=>{
+    if(!r.val&&!r.data) return `<div class="rata-item vuota"><span class="rata-label">${r.label}</span><span class="rata-val" style="color:var(--text3)">—</span></div>`;
+    return `<div class="rata-item pagata"><span class="rata-label">${r.label}</span><span class="rata-val">€ ${parseFloat(r.val)||0}</span><span class="rata-date">${r.data?fmtDate(r.data):''}</span><button class="btn-icon" onclick="eliminaRata(${i})">🗑</button></div>`;
+  }).join('');
+  const sc=saldo<0?'var(--danger)':saldo===0?'var(--accent)':'#1a5fa8';
+  document.getElementById('rataModalBody').innerHTML=`
+    <div style="margin-bottom:16px">
+      <div class="modal-section-title">Rate versate</div>
+      <div class="rate-list">${rateHtml}</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 14px;background:var(--surface2);border-radius:8px;font-size:0.9rem"><span>Totale versato</span><strong>€ ${versato.toFixed(2)}</strong></div>
+      ${dovuto>0?`<div style="display:flex;justify-content:space-between;padding:8px 14px;margin-top:4px;font-size:0.9rem"><span>Totale dovuto</span><strong>€ ${dovuto.toFixed(2)}</strong></div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:8px 14px;background:var(--surface2);border-radius:8px;font-size:0.95rem;margin-top:4px;font-weight:700"><span>Saldo</span><span style="color:${sc}">${saldo>=0?'+':''}€ ${saldo.toFixed(2)}</span></div>
+    </div>
+    <div class="add-rata-form">
+      <div class="modal-section-title">+ Aggiungi versamento</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end">
+        <div class="form-group"><label>Tipo</label>
+          <select id="nr_tipo">
+            <option value="rata1">Rata 1</option><option value="rata2">Rata 2</option><option value="rata3">Rata 3</option>
+            <option value="quotaIscr">Iscrizione</option><option value="libri1">Libri 1</option><option value="libri2">Libri 2</option>
+            <option value="extra1">Extra 1</option><option value="extra2">Extra 2</option>
+          </select></div>
+        <div class="form-group"><label>Importo (€)</label><input type="number" id="nr_importo" placeholder="0" step="0.01" min="0"></div>
+        <div class="form-group"><label>Data</label><input type="date" id="nr_data" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <div style="margin-top:10px;text-align:right"><button class="btn btn-primary" onclick="salvaRata()">💾 Salva versamento</button></div>
+    </div>`;
+}
+
+async function salvaRata(){
+  const s=students.find(x=>String(x.id)===rataStudentId); if(!s) return;
+  const tipo=document.getElementById('nr_tipo').value;
+  const importo=parseFloat(document.getElementById('nr_importo').value);
+  const data=document.getElementById('nr_data').value;
+  if(!importo||importo<=0){alert('Inserisci un importo valido.');return;}
+  const tipoLabel={rata1:'Rata 1',rata2:'Rata 2',rata3:'Rata 3',quotaIscr:'Iscrizione',libri1:'Libri 1',libri2:'Libri 2',extra1:'Extra 1',extra2:'Extra 2'}[tipo]||tipo;
+  const operatore=await requireOperator(`Versamento ${tipoLabel} — €${importo.toFixed(2)} — ${s.nome} ${s.cognome}`,'💶'); if(!operatore) return;
+  const dateMap={rata1:'dataRata1',rata2:'dataRata2',rata3:'dataRata3',quotaIscr:'dataIscrizione',libri1:'dataLibri1',libri2:'dataLibri2',extra1:'dataExtra1',extra2:'dataExtra2'};
+  s[tipo]=importo; if(data) s[dateMap[tipo]]=data;
+  addChangelogEntry(s,operatore,`Versamento ${tipoLabel}: €${importo.toFixed(2)}`);
+  await window.fbSaveStudent(s);
+  renderTable(); renderRataModal(s);
+  showToast('✅ Versamento salvato!');
+}
+
+async function eliminaRata(idx){
+  const s=students.find(x=>String(x.id)===rataStudentId); if(!s) return;
+  const labels=['Iscrizione','Rata 1','Rata 2','Rata 3'];
+  const operatore=await requireOperator(`Elimina ${labels[idx]||'rata'} — ${s.nome} ${s.cognome}`,'🗑️'); if(!operatore) return;
+  if(idx===0){s.quotaIscr=0;s.dataIscrizione='';}
+  else if(idx===1){s.rata1=0;s.dataRata1='';}
+  else if(idx===2){s.rata2=0;s.dataRata2='';}
+  else if(idx===3){s.rata3=0;s.dataRata3='';}
+  addChangelogEntry(s,operatore,`Eliminata ${labels[idx]||'rata'}`);
+  await window.fbSaveStudent(s);
+  renderTable(); renderRataModal(s);
+}
+
+// ═══════════════════════════════════════════
+//  FREQ MODAL
+// ═══════════════════════════════════════════
+function openFreqModal(id){
+  freqStudentId=String(id);
+  const s=students.find(x=>String(x.id)===String(id)); if(!s) return;
+  if(!s.lezioni) s.lezioni=[];
+  document.getElementById('freqModalTitle').textContent=`Frequenze — ${s.nome} ${s.cognome}`;
+  renderFreqModal(s); openModal('freqModal');
+}
+
+function renderFreqModal(s){
+  if(!s.lezioni) s.lezioni=[];
+  const pL=parseFloat(s.prezzoLezione)||35;
+  const versato=(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
+  const pagate=pL>0?versato/pL:0;
+  const fatte=s.lezioni.length;
+  const diff=fatte-pagate;
+  const isD=diff>0;
+  const boxes=[{val:fatte,lbl:'Lezioni fatte'},{val:pagate.toFixed(1),lbl:isD?`⚠️ Debito ${diff.toFixed(1)} lez.`:'✅ Pagate',cls:isD?'debito':'ok'},{val:`€ ${pL}`,lbl:'Prezzo/lez.'}];
+  const boxHtml=boxes.map(b=>`<div class="freq-box ${b.cls||''}"><div class="fb-val">${b.val}</div><div class="fb-lbl">${b.lbl}</div></div>`).join('');
+  const lezHtml=s.lezioni.length===0?'<div style="color:var(--text3);font-size:0.87rem;padding:12px 0">Nessuna lezione.</div>':s.lezioni.map((l,i)=>`<div class="freq-lezione-item"><span class="fl-num">${i+1}</span><span>${l.note||'Lezione'}</span><span class="fl-date">${fmtDate(l.data)}</span><button class="btn-icon" onclick="eliminaLezione(${i})">🗑</button></div>`).join('');
+  document.getElementById('freqModalBody').innerHTML=`
+    <div class="freq-summary">${boxHtml}</div>
+    ${isD?`<div style="background:var(--danger-light);border:1px solid var(--danger);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:0.88rem;color:var(--danger)"><strong>Debito:</strong> ${diff.toFixed(1)} lezioni = <strong>€ ${(diff*pL).toFixed(2)}</strong></div>`:''}
+    <div class="modal-section-title">Registro lezioni</div>
+    <div class="freq-lezioni-list">${lezHtml}</div>
+    <div class="add-rata-form">
+      <div class="modal-section-title">+ Aggiungi lezione</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end">
+        <div class="form-group"><label>Data</label><input type="date" id="fl_data" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="form-group"><label>Note</label><input type="text" id="fl_note" placeholder="es. Lezione sabato"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;justify-content:space-between;align-items:center">
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="aggiungiNLezioni(1)">+1</button>
+          <button class="btn btn-secondary btn-sm" onclick="aggiungiNLezioni(2)">+2</button>
+          <button class="btn btn-secondary btn-sm" onclick="aggiungiNLezioni(5)">+5</button>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="salvaLezione()">💾 Salva</button>
+      </div>
+    </div>`;
+}
+
+async function salvaLezione(){
+  const s=students.find(x=>String(x.id)===freqStudentId); if(!s) return;
+  if(!s.lezioni) s.lezioni=[];
+  const data=document.getElementById('fl_data').value;
+  const note=document.getElementById('fl_note').value;
+  const operatore=await requireOperator(`Aggiungi lezione — ${s.nome} ${s.cognome}`,'📋'); if(!operatore) return;
+  s.lezioni.push({data,note});
+  addChangelogEntry(s,operatore,`Lezione aggiunta${data?' del '+fmtDate(data):''}${note?' — '+note:''}`);
+  await window.fbSaveStudent(s);
+  renderTable(); renderFreqModal(s);
+}
+
+async function aggiungiNLezioni(n){
+  const s=students.find(x=>String(x.id)===freqStudentId); if(!s) return;
+  if(!s.lezioni) s.lezioni=[];
+  const operatore=await requireOperator(`Aggiungi ${n} lezioni — ${s.nome} ${s.cognome}`,'📋'); if(!operatore) return;
+  const today=new Date().toISOString().slice(0,10);
+  for(let i=0;i<n;i++) s.lezioni.push({data:today,note:''});
+  addChangelogEntry(s,operatore,`Aggiunte ${n} lezioni rapide`);
+  await window.fbSaveStudent(s);
+  renderTable(); renderFreqModal(s);
+}
+
+async function eliminaLezione(idx){
+  const s=students.find(x=>String(x.id)===freqStudentId); if(!s||!s.lezioni) return;
+  const operatore=await requireOperator(`Elimina lezione #${idx+1} — ${s.nome} ${s.cognome}`,'🗑️'); if(!operatore) return;
+  s.lezioni.splice(idx,1);
+  addChangelogEntry(s,operatore,`Lezione #${idx+1} eliminata`);
+  await window.fbSaveStudent(s);
+  renderTable(); renderFreqModal(s);
+}
+
+// ═══════════════════════════════════════════
+//  RETIRE / BULK
+// ═══════════════════════════════════════════
+async function toggleRetire(id){
+  const s=students.find(x=>String(x.id)===String(id)); if(!s) return;
+  const azione=s.ritirato?'Riattiva':'Ritira';
+  const operatore=await requireOperator(`${azione}: ${s.nome} ${s.cognome}`,s.ritirato?'↩️':'📤'); if(!operatore) return;
+  s.ritirato=!s.ritirato;
+  addChangelogEntry(s,operatore,s.ritirato?'Segnato come Ritirato':'Riattivato');
+  await window.fbSaveStudent(s);
+  renderTable();
+}
+
+async function bulkRetire(){
+  if(selectedIds.size===0) return;
+  const sel=[...selectedIds].map(id=>students.find(x=>String(x.id)===String(id))).filter(Boolean);
+  if(!confirm(`Segnare come Ritirati ${sel.length} studenti?`)) return;
+  const operatore=await requireOperator(`Ritiro multiplo: ${sel.length} studenti`,'📤'); if(!operatore) return;
+  for(const s of sel){s.ritirato=true;addChangelogEntry(s,operatore,'Ritirato (bulk)');await window.fbSaveStudent(s);}
+  clearSelection(); renderTable();
+}
+
+// ═══════════════════════════════════════════
+//  SELECTION
+// ═══════════════════════════════════════════
+function onRowCheck(){
+  selectedIds.clear();
+  document.querySelectorAll('.row-check:checked').forEach(cb=>selectedIds.add(cb.dataset.id));
+  updateBulkBar();
+}
+function toggleSelectAll(cb){
+  document.querySelectorAll('.row-check').forEach(c=>{c.checked=cb.checked;cb.checked?selectedIds.add(c.dataset.id):selectedIds.delete(c.dataset.id);});
+  updateBulkBar();
+}
+function clearSelection(){selectedIds.clear();document.querySelectorAll('.row-check,#selectAll').forEach(c=>c.checked=false);updateBulkBar();}
+function updateBulkBar(){
+  const n=selectedIds.size;
+  document.getElementById('bulkBar').classList[n>0?'add':'remove']('visible');
+  document.getElementById('bulkCount').textContent=`${n} student${n===1?'e':'i'} selezionat${n===1?'o':'i'}`;
+}
+
+// ═══════════════════════════════════════════
+//  PROMOTE
+// ═══════════════════════════════════════════
+function openPromoteModal(){
+  if(selectedIds.size===0) return;
+  document.getElementById('promoNewYear').value=nextYear(currentYear);
+  const list=document.getElementById('promoStudentList');
+  list.innerHTML=[...selectedIds].map(id=>{
+    const s=students.find(x=>String(x.id)===String(id)); if(!s) return '';
+    const sT=calcSaldoTotale(s);
+    const sl=sT===0?'<span style="color:var(--accent)">✅ In pari</span>':sT>0?`<span style="color:#1a5fa8">💙 +€${sT.toFixed(2)}</span>`:`<span style="color:var(--danger)">⚠️ -€${Math.abs(sT).toFixed(2)}</span>`;
+    return `<div class="promo-student-item"><span class="pi-name">${s.nome} ${s.cognome}</span><span class="badge badge-blue">${s.classe||'–'}</span>${sl}</div>`;
+  }).join('');
+  openModal('promoteModal');
+}
+
+async function confirmPromote(){
+  const newYear=document.getElementById('promoNewYear').value.trim();
+  if(!newYear){alert('Inserisci l\'anno di destinazione.');return;}
+  const toPromote=[...selectedIds].map(id=>students.find(x=>String(x.id)===String(id))).filter(Boolean);
+  if(toPromote.length===0) return;
+  const operatore=await requireOperator(`Promozione → A.S. ${newYear}`,'🎓'); if(!operatore) return;
+  for(const s of toPromote){
+    const sT=calcSaldoTotale(s);
+    const ns={
+      id:String(Date.now()+Math.random()),
+      matricola:s.matricola,nome:s.nome,cognome:s.cognome,classe:s.classe,sezione:s.sezione,
+      corso:s.corso||'',dataNascita:s.dataNascita,genitore:s.genitore,email:s.email,telefono:s.telefono,
+      dataIscrizione:'',modalita:s.modalita,metodo:s.metodo,prezzoLezione:s.prezzoLezione||35,
+      quotaIscr:0,rata1:sT>0?sT:0,dataRata1:sT>0?new Date().toISOString().slice(0,10):'',
+      rata2:0,dataRata2:'',rata3:0,dataRata3:'',
+      noteRate:sT!==0?`Saldo riportato da A.S. ${currentYear}: ${sT>0?'+':''}€${sT.toFixed(2)}`:'',
+      totaleDovuto:sT<0?Math.abs(sT):0,
+      libri1:0,dataLibri1:'',libri2:0,dataLibri2:'',metodoLibri:'',libriDovuto:0,
+      corsoExtra1:'',extra1:0,dataExtra1:'',corsoExtra2:'',extra2:0,dataExtra2:'',extraDovuto:0,
+      note:`Continua da A.S. ${currentYear}`+(s.note?' — '+s.note:''),
+      lezioni:[],ritirato:false,continua:true,changelog:[],
+    };
+    addChangelogEntry(ns,operatore,`Promosso da A.S. ${currentYear}`);
+    await window.fbSaveStudent(ns);
+    s.promosso=true; s.annoPromosso=newYear;
+    await window.fbSaveStudent(s);
+  }
+  closeModal('promoteModal'); clearSelection();
+  showToast(`✅ ${toPromote.length} studenti promossi!`);
+}
+
+// ═══════════════════════════════════════════
+//  CORSI
+// ═══════════════════════════════════════════
+function openCoursesModal(){renderCoursesList();openModal('coursesModal');}
+
+function renderCoursesList(){
+  const c=document.getElementById('coursesListContainer');
+  if(courses.length===0){c.innerHTML='<div style="color:var(--text3);font-size:0.87rem">Nessun corso.</div>';return;}
+  c.innerHTML=courses.map((co,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+      <span style="flex:1;font-size:0.9rem">${co}</span>
+      <button class="btn btn-danger btn-sm" onclick="deleteCourse(${i})">🗑</button>
+    </div>`).join('');
+}
+
+async function addCourse(){
+  const input=document.getElementById('newCourseInput');
+  const val=input.value.trim(); if(!val){input.focus();return;}
+  if(courses.includes(val)){alert('Corso già esistente.');return;}
+  courses.push(val); input.value='';
+  await saveSettings(); populateFilters(); renderCoursesList(); input.focus();
+}
+
+async function deleteCourse(i){
+  const name=courses[i];
+  if(!confirm(`Eliminare il corso "${name}"?`)) return;
+  courses.splice(i,1);
+  await saveSettings(); populateFilters(); renderCoursesList();
+}
+
+// ═══════════════════════════════════════════
+//  OPERATORI
+// ═══════════════════════════════════════════
+function openOperatoriModal(){renderOperatoriList();openModal('operatoriModal');}
+
+function renderOperatoriList(){
+  const ops=getOperatori();
+  const c=document.getElementById('operatoriListContainer');
+  c.innerHTML=ops.map((op,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+      <span style="font-size:1.4rem">${op.avatar||'👤'}</span>
+      <span style="flex:1;font-size:0.9rem;font-weight:600">${op.nome}</span>
+      <span style="font-size:0.78rem;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:2px 8px">${op.sigla}</span>
+      <button class="btn btn-danger btn-sm" onclick="deleteOperatore(${i})">🗑</button>
+    </div>`).join('');
+}
+
+async function addOperatore(){
+  const nome=document.getElementById('newOpNome').value.trim();
+  const sigla=document.getElementById('newOpSigla').value.trim().toUpperCase();
+  const avatar=document.getElementById('newOpAvatar').value.trim()||'👤';
+  if(!nome||!sigla){alert('Nome e sigla obbligatori.');return;}
+  const ops=getOperatori();
+  if(ops.find(o=>o.nome.toLowerCase()===nome.toLowerCase())){alert('Operatore già esistente.');return;}
+  ops.push({nome,sigla,avatar});
+  window._operatori=ops;
+  await saveSettings();
+  document.getElementById('newOpNome').value='';document.getElementById('newOpSigla').value='';document.getElementById('newOpAvatar').value='';
+  renderOperatoriList();
+}
+
+async function deleteOperatore(i){
+  const ops=getOperatori();
+  if(!confirm(`Rimuovere "${ops[i].nome}"?`)) return;
+  ops.splice(i,1); window._operatori=ops;
+  await saveSettings(); renderOperatoriList();
+}
+
+// ═══════════════════════════════════════════
+//  OPERATORE PICKER
+// ═══════════════════════════════════════════
+let _opQueue=null;
+
+function requireOperator(description,icon='✏️'){
+  return new Promise(resolve=>{
+    _opQueue={resolve,description,icon};
+    document.getElementById('opModalIcon').textContent=icon;
+    document.getElementById('opModalDesc').textContent=description;
+    const ops=getOperatori();
+    document.getElementById('opChoices').innerHTML=ops.map(op=>`
+      <button class="op-btn" id="opBtn_${op.nome.replace(/\s/g,'_')}" onclick="selectOperator('${op.nome.replace(/'/g,"\\'")}')">
+        <span class="op-avatar">${op.avatar||'👤'}</span>
+        <span class="op-name">${op.nome}</span>
+        <span style="font-size:0.72rem;color:var(--text3)">${op.sigla}</span>
+      </button>`).join('');
+    openModal('operatorModal');
+  });
+}
+
+function selectOperator(name){
+  const btn=document.getElementById('opBtn_'+name.replace(/\s/g,'_'));
+  if(btn) btn.classList.add('selected');
+  setTimeout(()=>{closeModal('operatorModal');if(_opQueue){const cb=_opQueue.resolve;_opQueue=null;cb(name);}},180);
+}
+
+function cancelOperator(){
+  closeModal('operatorModal');
+  if(_opQueue){_opQueue.resolve(null);_opQueue=null;}
+}
+
+function addChangelogEntry(student,operatore,descrizione){
+  if(!student.changelog) student.changelog=[];
+  student.changelog.unshift({ts:new Date().toISOString(),op:operatore,desc:descrizione});
+  if(student.changelog.length>50) student.changelog.length=50;
+}
+
+// ═══════════════════════════════════════════
+//  MATRICOLA INLINE EDIT
+// ═══════════════════════════════════════════
+function startEditMatricola(id,spanEl){
+  const s=students.find(x=>String(x.id)===String(id)); if(!s) return;
+  const cell=spanEl.parentElement;
+  const input=document.createElement('input');
+  input.type='number';input.className='matricola-input';input.value=s.matricola||'';input.placeholder='–';
+  cell.innerHTML='';cell.appendChild(input);input.focus();input.select();
+  async function commit(){
+    const val=input.value.trim();const newVal=val!==''?parseFloat(val):'';
+    if(newVal===s.matricola){renderTable();return;}
+    const operatore=await requireOperator(`Matricola: ${s.nome} ${s.cognome} → ${newVal||'–'}`,'🔢');
+    if(!operatore){renderTable();return;}
+    s.matricola=newVal;
+    addChangelogEntry(s,operatore,`Matricola → ${newVal||'–'}`);
+    await window.fbSaveStudent(s); renderTable();
+  }
+  input.addEventListener('blur',commit);
+  input.addEventListener('keydown',e=>{if(e.key==='Enter'){input.removeEventListener('blur',commit);commit();}if(e.key==='Escape')renderTable();});
+}
+
+// ═══════════════════════════════════════════
+//  EXPORT CSV
+// ═══════════════════════════════════════════
+function exportCSV(){
+  const headers=['Matricola','Nome','Cognome','Classe','Genitore','Modalità','Saldo Ord.','Saldo Libri','Saldo Extra','Saldo Totale'];
+  const rows=getFiltered().map(s=>[s.matricola,s.nome,s.cognome,s.classe,s.genitore,s.modalita,calcSaldoOrdinario(s),calcSaldoLibri(s),calcSaldoExtra(s),calcSaldoTotale(s)].map(v=>`"${(v===undefined||v===null)?'':String(v).replace(/"/g,'""')}"`));
+  const csv=[headers,...rows].map(r=>r.join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pagamenti_${currentYear.replace(/[–\-]/g,'_')}.csv`;a.click();
+}
+
+// ═══════════════════════════════════════════
+//  CLICK OUTSIDE MODALS
+// ═══════════════════════════════════════════
+window.addEventListener('click',e=>{
+  ['studentModal','confirmModal','archiveYearModal','rataModal','freqModal','coursesModal','promoteModal','viewModal','operatoriModal'].forEach(id=>{
+    if(e.target===document.getElementById(id)) closeModal(id);
+  });
+  if(e.target===document.getElementById('operatorModal')) cancelOperator();
+});
+
+// ═══════════════════════════════════════════
+//  BACKUP & RESTORE
+// ═══════════════════════════════════════════
+const BACKUP_KEY = 'gestione_last_backup';
+
+function toggleBackupMenu() {
+  const m = document.getElementById('backupMenu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('backupMenuWrap')?.contains(e.target))
+    document.getElementById('backupMenu') && (document.getElementById('backupMenu').style.display = 'none');
+});
+
+function getBackupData() {
+  return { _version: 2, _savedAt: new Date().toISOString(), _app: 'gestione-pagamenti', currentYear, students, archive, courses, cestino };
+}
+
+function backupJSON() {
+  const data = getBackupData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `backup_pagamenti_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  saveBackupTimestamp();
+  showToast('💾 Backup JSON scaricato!');
+}
+
+function backupCSV() {
+  const csv = toCSV(students);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `backup_pagamenti_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  saveBackupTimestamp();
+  showToast('📊 Backup CSV scaricato!');
+}
+
+function saveBackupTimestamp() {
+  const now = new Date().toISOString();
+  localStorage.setItem(BACKUP_KEY, now);
+  updateLastBackupLabel();
+}
+
+function updateLastBackupLabel() {
+  const el = document.getElementById('lastBackupLabel');
+  if (!el) return;
+  const ts = localStorage.getItem(BACKUP_KEY);
+  if (!ts) { el.textContent = '—'; return; }
+  const d = new Date(ts);
+  el.textContent = d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
+}
+
+function restoreFromJSON(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.students) { alert('File non valido.'); return; }
+      if (!confirm(`Ripristinare il backup del ${data._savedAt ? new Date(data._savedAt).toLocaleString('it-IT') : '–'}?\n\nI dati attuali su Firebase verranno sostituiti.`)) return;
+      students    = data.students || [];
+      archive     = data.archive  || [];
+      courses     = data.courses  || getDefaultCourses();
+      cestino     = data.cestino  || [];
+      currentYear = data.currentYear || '2025–2026';
+      // Push everything to Firebase
+      (async () => {
+        for (const s of students) await window.fbSaveStudent(s);
+        await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori() });
+        document.getElementById('currentYearBadge').textContent = 'A.S. ' + currentYear;
+        populateFilters(); renderTable(); updateCestinoTabBadge();
+        showToast('✅ Ripristino completato!');
+      })();
+    } catch(err) { alert('Errore nel file: ' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function checkDailyBackup() {
+  const ts = localStorage.getItem(BACKUP_KEY);
+  if (!ts) return; // mai fatto, non disturbare
+  const last = new Date(ts);
+  const now = new Date();
+  const diffDays = (now - last) / (1000 * 60 * 60 * 24);
+  if (diffDays >= 1) {
+    setTimeout(() => {
+      showToast('⚠️ Backup non effettuato da ' + Math.floor(diffDays) + ' giorni — clicca 💾 Backup');
+    }, 3000);
+  }
+  updateLastBackupLabel();
+}
+
+// Auto-backup ogni giorno — scarica JSON automaticamente
+function autoDailyBackup() {
+  const ts = localStorage.getItem(BACKUP_KEY);
+  const now = new Date();
+  if (ts) {
+    const last = new Date(ts);
+    const diffDays = (now - last) / (1000 * 60 * 60 * 24);
+    if (diffDays < 1) return; // già fatto oggi
+  }
+  // Aspetta che i dati siano caricati poi scarica
+  setTimeout(() => {
+    if (students.length > 0) {
+      backupJSON();
+      showToast('🔄 Backup automatico giornaliero eseguito!');
+    }
+  }, 5000);
+}
+
+// Init UI immediately (Firebase listeners will populate data)
+updateLastBackupLabel();
+populateFilters();
+renderTable();
+</script>
+</body>
+</html>
