@@ -193,7 +193,11 @@
   <h1>📚 Gestione Pagamenti Scuola</h1>
   <div class="header-right">
     <div class="sync-indicator"><div class="sync-dot" id="syncDot"></div><span id="syncLabel">In sync</span></div>
-    <span class="year-badge" id="currentYearBadge">A.S. 2025–2026</span>
+    <div style="display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;padding:2px 4px 2px 12px">
+      <span style="font-size:0.85rem;font-weight:500">A.S.</span>
+      <select id="yearSelect" onchange="switchYear(this.value)" style="background:transparent;color:white;border:none;font-family:inherit;font-size:0.85rem;font-weight:500;padding:4px 4px;outline:none;cursor:pointer"></select>
+      <button onclick="createNewYear()" title="Crea nuovo anno scolastico" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:50%;width:22px;height:22px;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-right:2px">+</button>
+    </div>
     <span id="userInfo" style="font-size:0.82rem;background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px"></span>
     <button onclick="doLogout()" class="btn btn-secondary btn-sm" style="background:rgba(255,255,255,0.15);color:white;border-color:rgba(255,255,255,0.3)">🚪 Esci</button>
     <button class="btn btn-archive" onclick="showArchiveYearModal()">🗃 Archivia Anno</button>
@@ -235,8 +239,11 @@
   <div class="modal" style="max-width:640px">
     <div class="modal-header"><h2>🎓 Passa ad Anno Successivo</h2><button class="modal-close" onclick="closeModal('promoteModal')">✕</button></div>
     <div class="modal-body">
-      <div class="promo-info-box">Gli studenti selezionati verranno copiati nel nuovo anno scolastico con il tag <strong>Continua</strong>.<br>I <strong>debiti e i crediti</strong> dell'anno corrente saranno riportati come saldo iniziale nel nuovo anno.</div>
-      <div class="promo-year-row"><label>Nuovo Anno Scolastico</label><input type="text" id="promoNewYear" placeholder="es. 2026–2027"></div>
+      <div class="promo-info-box">Gli studenti selezionati verranno spostati nell'anno scolastico scelto, con il tag <strong>Continua</strong>.<br>I <strong>debiti e i crediti</strong> dell'anno corrente saranno riportati come saldo iniziale, e resterà visibile lo storico dei pagamenti dell'anno precedente.</div>
+      <div class="promo-year-row"><label>Anno di destinazione</label><select id="promoNewYear" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.9rem;background:var(--bg);outline:none;min-width:160px"></select></div>
+      <div id="promoNoYearWarning" style="display:none;margin:-8px 0 16px;padding:10px 14px;background:var(--warning-light);color:var(--warning);border-radius:8px;font-size:0.85rem">
+        ⚠️ Non esiste ancora un altro anno scolastico. <button class="btn btn-secondary btn-sm" onclick="createNewYear().then(()=>openPromoteModal())">➕ Crea nuovo anno ora</button>
+      </div>
       <div class="modal-section-title" style="margin-bottom:0">Studenti selezionati</div>
       <div class="promo-student-list" id="promoStudentList"></div>
     </div>
@@ -722,13 +729,17 @@ function startListeners() {
     if (document.getElementById('tab-archivio').style.display !== 'none') renderArchive();
   });
 
-  // Settings (currentYear, courses, operatori)
+  // Settings (currentYear, courses, operatori, anni)
   onSnapshot(doc(db, COLS.settings, 'global'), snap => {
     if (snap.exists()) {
       const d = snap.data();
-      if (d.currentYear) { currentYear = d.currentYear; document.getElementById('currentYearBadge').textContent = 'A.S. ' + currentYear; }
+      if (d.currentYear) { currentYear = d.currentYear; }
       if (d.courses)    { courses = d.courses; populateFilters(); }
       if (d.operatori)  { window._operatori = d.operatori; }
+      anni = Array.isArray(d.anni) && d.anni.length ? [...d.anni] : [currentYear];
+      if (!anni.includes(currentYear)) anni.push(currentYear);
+      anni.sort();
+      window.renderYearSelector && window.renderYearSelector();
     }
   });
 }
@@ -933,7 +944,7 @@ async function confirmEncPassword() {
 // ═══════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════
-let students = [], archive = [], ritirati = [], cestino = [], courses = [], currentYear = '2025–2026';
+let students = [], archive = [], ritirati = [], cestino = [], courses = [], currentYear = '2025–2026', anni = [];
 let editingId = null, sortField = 'matricola', sortAsc = true;
 let rataStudentId = null, freqStudentId = null;
 let selectedIds = new Set();
@@ -982,7 +993,11 @@ async function deleteStudentFb(id) {
   if (window.fbDeleteStudent) await window.fbDeleteStudent(id);
 }
 async function saveSettings() {
-  if (window.fbSaveSettings) await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori() });
+  if (window.fbSaveSettings) await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori(), anni });
+}
+
+function studentsThisYear() {
+  return students.filter(s => (s.anno || currentYear) === currentYear);
 }
 
 // ═══════════════════════════════════════════
@@ -1045,7 +1060,7 @@ function getFiltered() {
   const fs=document.getElementById('filterSaldo').value;
   const fm=document.getElementById('filterModalita').value;
   const fco=document.getElementById('filterCorso').value;
-  return students.filter(s => {
+  return studentsThisYear().filter(s => {
     const matchQ=!q||`${s.nome} ${s.cognome} ${s.classe} ${s.genitore||''} ${s.telefono||''}`.toLowerCase().includes(q);
     const matchC=!fc||s.classe===fc;
     const matchM=!fm||s.modalita===fm;
@@ -1075,16 +1090,17 @@ function sortBy(field) {
 }
 
 function populateFilters() {
+  const yearStudents=studentsThisYear();
   const allClasses=[...CLASSI_MATERNA,...CLASSI_SCUOLA];
-  const usedClasses=allClasses.filter(c=>students.some(s=>s.classe===c));
-  const extraClasses=[...new Set(students.map(s=>s.classe).filter(Boolean))].filter(c=>!allClasses.includes(c));
+  const usedClasses=allClasses.filter(c=>yearStudents.some(s=>s.classe===c));
+  const extraClasses=[...new Set(yearStudents.map(s=>s.classe).filter(Boolean))].filter(c=>!allClasses.includes(c));
   const sel=document.getElementById('filterClasse'); const cur=sel.value;
   sel.innerHTML='<option value="">Tutte le classi</option>'
     +(usedClasses.some(c=>CLASSI_MATERNA.includes(c))?`<optgroup label="Materna">${CLASSI_MATERNA.filter(c=>usedClasses.includes(c)).map(c=>`<option value="${c}">${c}</option>`).join('')}</optgroup>`:'')
     +(usedClasses.some(c=>CLASSI_SCUOLA.includes(c))?`<optgroup label="Scuola">${CLASSI_SCUOLA.filter(c=>usedClasses.includes(c)).map(c=>`<option value="${c}">${c}</option>`).join('')}</optgroup>`:'')
     +extraClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
   sel.value=cur;
-  const mods=[...new Set(students.map(s=>s.modalita).filter(Boolean))].sort();
+  const mods=[...new Set(yearStudents.map(s=>s.modalita).filter(Boolean))].sort();
   const selM=document.getElementById('filterModalita'); const curM=selM.value;
   selM.innerHTML='<option value="">Tutte le modalità</option>'+mods.map(m=>`<option value="${m}">${m}</option>`).join(''); selM.value=curM;
   const selCo=document.getElementById('filterCorso'); const curCo=selCo.value;
@@ -1100,11 +1116,12 @@ function populateFilters() {
 //  STATS & TABLE
 // ═══════════════════════════════════════════
 function renderStats() {
-  const total=students.length;
-  const inDebito=students.filter(s=>calcSaldoTotale(s)<0).length;
-  const inPari=students.filter(s=>calcSaldoTotale(s)===0).length;
-  const totV=students.reduce((a,s)=>a+(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0)+(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0)+(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0),0);
-  const totD=students.reduce((a,s)=>a+(parseFloat(s.totaleDovuto)||0)+(parseFloat(s.libriDovuto)||0)+(parseFloat(s.extraDovuto)||0),0);
+  const yearStudents=studentsThisYear();
+  const total=yearStudents.length;
+  const inDebito=yearStudents.filter(s=>calcSaldoTotale(s)<0).length;
+  const inPari=yearStudents.filter(s=>calcSaldoTotale(s)===0).length;
+  const totV=yearStudents.reduce((a,s)=>a+(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0)+(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0)+(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0),0);
+  const totD=yearStudents.reduce((a,s)=>a+(parseFloat(s.totaleDovuto)||0)+(parseFloat(s.libriDovuto)||0)+(parseFloat(s.extraDovuto)||0),0);
   document.getElementById('statsBar').innerHTML=`
     <div class="stat-card"><div class="stat-label">Studenti Totali</div><div class="stat-value">${total}</div></div>
     <div class="stat-card danger"><div class="stat-label">In Debito</div><div class="stat-value">${inDebito}</div></div>
@@ -1226,8 +1243,34 @@ function openViewModal(id, externalStudent){
         ${row('Saldo Extra',fmtEuro(sE))}${row('Saldo Totale',`<strong>${fmtEuro(sT)}</strong>`)}</table>
         ${s.note?`<div style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:8px;font-size:0.85rem"><strong>Note:</strong> ${s.note}</div>`:''}
       </div>
-    </div>`;
+    </div>
+    ${renderStoricoAnniBlock(s)}`;
   openModal('viewModal');
+}
+
+function renderStoricoAnniBlock(s){
+  if(!s.storicoAnni || s.storicoAnni.length===0) return '';
+  const rows=[...s.storicoAnni].reverse().map(h=>{
+    const badge=h.saldo<0?'<span class="badge badge-red">⚠️ Debito</span>':h.saldo===0?'<span class="badge badge-green">✅ In pari</span>':'<span class="badge badge-blue">💙 Credito</span>';
+    return `<tr><td style="padding:6px 10px;font-size:0.85rem"><strong>A.S. ${h.anno}</strong></td>
+      <td style="padding:6px 10px;font-size:0.85rem">€ ${(h.versato||0).toFixed(2)}</td>
+      <td style="padding:6px 10px;font-size:0.85rem">€ ${(h.dovuto||0).toFixed(2)}</td>
+      <td style="padding:6px 10px;font-size:0.85rem"><strong>${fmtEuro(h.saldo||0)}</strong></td>
+      <td style="padding:6px 10px">${badge}</td></tr>`;
+  }).join('');
+  return `<div style="margin-top:20px">
+    <div class="modal-section-title">📅 Consuntivo Anni Precedenti</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;border-bottom:1.5px solid var(--border)">
+        <th style="padding:6px 10px;font-size:0.75rem;color:var(--text3);text-transform:uppercase">Anno</th>
+        <th style="padding:6px 10px;font-size:0.75rem;color:var(--text3);text-transform:uppercase">Versato</th>
+        <th style="padding:6px 10px;font-size:0.75rem;color:var(--text3);text-transform:uppercase">Dovuto</th>
+        <th style="padding:6px 10px;font-size:0.75rem;color:var(--text3);text-transform:uppercase">Saldo Finale</th>
+        <th style="padding:6px 10px;font-size:0.75rem;color:var(--text3);text-transform:uppercase">Stato</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
 }
 
 async function saveStudent() {
@@ -1242,9 +1285,9 @@ async function saveStudent() {
   fields.forEach(f=>{const el=document.getElementById('f_'+f);if(!el)return;obj[f]=numFields.includes(f)?(parseFloat(el.value)||0):el.value;});
   if(editingId){
     const existing=students.find(x=>String(x.id)===String(editingId));
-    if(existing){obj.lezioni=existing.lezioni||[];obj.changelog=existing.changelog||[];}
+    if(existing){obj.lezioni=existing.lezioni||[];obj.changelog=existing.changelog||[];obj.anno=existing.anno||currentYear;obj.storicoAnni=existing.storicoAnni||[];}
   } else {
-    obj.lezioni=[];obj.changelog=[];
+    obj.lezioni=[];obj.changelog=[];obj.anno=currentYear;obj.storicoAnni=[];
   }
   addChangelogEntry(obj,operatore,isNew?`Nuovo studente: ${nome} ${cognome}`:`Modifica dati: ${nome} ${cognome}`);
   await window.fbSaveStudent(obj);
@@ -1350,13 +1393,15 @@ async function emptyTrush(){
 //  ARCHIVE
 // ═══════════════════════════════════════════
 function showArchiveYearModal(){
-  const attivi = students.filter(s=>!s.ritirato);
-  const ritiratiCount = students.filter(s=>s.ritirato).length;
-  document.getElementById('archiveCount').textContent=students.length;
+  const yearStudents = studentsThisYear();
+  const attivi = yearStudents.filter(s=>!s.ritirato);
+  const giaPromossi = attivi.filter(s=>s.promosso).length;
+  const ritiratiCount = yearStudents.filter(s=>s.ritirato).length;
+  document.getElementById('archiveCount').textContent=yearStudents.length;
   document.getElementById('archiveYearLabel').value=currentYear;
   const info = document.getElementById('archiveYearInfo');
   if (info) {
-    info.innerHTML = `${attivi.length} studenti attivi verranno portati nel nuovo anno (debiti/crediti riportati come saldo iniziale).<br>${ritiratiCount} studenti ritirati verranno spostati nell'archivio "Ritirati" (non nel nuovo anno).`;
+    info.innerHTML = `${attivi.length} studenti attivi verranno portati nel nuovo anno (debiti/crediti riportati come saldo iniziale)${giaPromossi?`, di cui ${giaPromossi} già promossi singolarmente in precedenza`:''}.<br>${ritiratiCount} studenti ritirati verranno spostati nell'archivio "Ritirati" (non nel nuovo anno).`;
   }
   openModal('archiveYearModal');
 }
@@ -1365,13 +1410,18 @@ async function archiveYear(){
   const label=document.getElementById('archiveYearLabel').value.trim()||currentYear;
   const operatore=await requireOperator(`Archivia anno: ${label}`,'🗃'); if(!operatore) return;
 
+  const yearStudents = studentsThisYear();
+
   // 1) Snapshot completo di tutti gli studenti dell'anno (storico, invariato)
-  const entry={id:'archive_'+Date.now(),anno:label,data:new Date().toLocaleDateString('it-IT'),studenti:JSON.parse(JSON.stringify(students))};
+  const entry={id:'archive_'+Date.now(),anno:label,data:new Date().toLocaleDateString('it-IT'),studenti:JSON.parse(JSON.stringify(yearStudents))};
   await window.fbSaveArchive(entry);
 
-  const attivi = students.filter(s=>!s.ritirato);
-  const ritiratiList = students.filter(s=>s.ritirato);
+  const attivi = yearStudents.filter(s=>!s.ritirato);
+  const ritiratiList = yearStudents.filter(s=>s.ritirato);
   const newYear = nextYear(label);
+
+  // Assicura che il nuovo anno esista nell'elenco anni
+  if(!anni.includes(newYear)){ anni.push(newYear); }
 
   // 2) Studenti ritirati → archivio dedicato "Ritirati", con saldo finale e storico pagamenti
   for (const s of ritiratiList) {
@@ -1385,40 +1435,65 @@ async function archiveYear(){
     await window.fbSaveRitirato(ritEntry);
   }
 
-  // 3) Studenti attivi → nuovi record per il nuovo anno, con debiti/crediti riportati come saldo iniziale
+  // 3) Studenti attivi → nuovi record per il nuovo anno, con debiti/crediti riportati come saldo iniziale.
+  //    Chi era già stato promosso singolarmente (tag "promosso") ha già il suo record nel nuovo anno: si evita il doppione.
+  let promossiOra = 0;
   for (const s of attivi) {
-    const sT = calcSaldoTotale(s);
-    const ns = {
-      id: String(Date.now()+Math.random()),
-      matricola:s.matricola,nome:s.nome,cognome:s.cognome,classe:s.classe,sezione:s.sezione,
-      corso:s.corso||'',dataNascita:s.dataNascita,genitore:s.genitore,email:s.email,telefono:s.telefono,
-      dataIscrizione:'',modalita:s.modalita,metodo:s.metodo,prezzoLezione:s.prezzoLezione||35,
-      quotaIscr:0,rata1:sT>0?sT:0,dataRata1:sT>0?new Date().toISOString().slice(0,10):'',
-      rata2:0,dataRata2:'',rata3:0,dataRata3:'',
-      noteRate:sT!==0?`Saldo riportato da A.S. ${label}: ${sT>0?'+':''}€${sT.toFixed(2)}`:'',
-      totaleDovuto:sT<0?Math.abs(sT):0,
-      libri1:0,dataLibri1:'',libri2:0,dataLibri2:'',metodoLibri:'',libriDovuto:0,
-      corsoExtra1:'',extra1:0,dataExtra1:'',corsoExtra2:'',extra2:0,dataExtra2:'',extraDovuto:0,
-      note:`Continua da A.S. ${label}`+(s.note?' — '+s.note:''),
-      lezioni:[],ritirato:false,continua:true,changelog:[],
-    };
-    addChangelogEntry(ns,operatore,`Anno archiviato: ${label} → nuovo A.S. ${newYear}`);
+    if (s.promosso) continue;
+    const ns = buildCarriedStudent(s, newYear, label, operatore);
     await window.fbSaveStudent(ns);
+    promossiOra++;
   }
 
-  // 4) Svuota la lista corrente (tutti già salvati in archivio storico + ritirati/nuovo anno)
-  for(const s of students) await window.fbDeleteStudent(s.id);
+  // 4) Svuota la lista dell'anno appena archiviato (tutti già salvati in archivio storico + ritirati/nuovo anno)
+  for(const s of yearStudents) await window.fbDeleteStudent(s.id);
 
   currentYear=newYear;
   await saveSettings();
-  document.getElementById('currentYearBadge').textContent='A.S. '+currentYear;
+  renderYearSelector();
   closeModal('archiveYearModal');
-  showToast(`✅ Anno ${label} archiviato: ${attivi.length} studenti portati nel nuovo anno, ${ritiratiList.length} spostati nell'archivio Ritirati.`);
+  showToast(`✅ Anno ${label} archiviato: ${promossiOra} studenti portati nel nuovo anno, ${ritiratiList.length} spostati nell'archivio Ritirati.`);
 }
 
 function nextYear(label){
   const m=label.match(/(\d{4})[–\-](\d{4})/);
   return m?`${parseInt(m[1])+1}–${parseInt(m[2])+1}`:label;
+}
+
+// ═══════════════════════════════════════════
+//  GESTIONE ANNI SCOLASTICI
+// ═══════════════════════════════════════════
+function renderYearSelector(){
+  const sel=document.getElementById('yearSelect');
+  if(!sel) return;
+  if(!anni.includes(currentYear)) anni.push(currentYear);
+  const sorted=[...anni].sort();
+  sel.innerHTML=sorted.map(y=>`<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`).join('');
+}
+
+async function createNewYear(){
+  const suggested=nextYear([...anni].sort().slice(-1)[0]||currentYear);
+  const label=prompt('Etichetta del nuovo anno scolastico (es. 2026–2027):', suggested);
+  if(!label) return;
+  const clean=label.trim();
+  if(!clean) return;
+  if(anni.includes(clean)){ showToast('⚠️ Questo anno esiste già.'); return; }
+  const operatore=await requireOperator(`Crea nuovo anno: ${clean}`,'➕'); if(!operatore) return;
+  anni.push(clean);
+  await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori(), anni });
+  renderYearSelector();
+  showToast(`✅ Anno ${clean} creato. Selezionalo dal menu in alto per lavorarci, oppure usalo come destinazione nelle promozioni.`);
+}
+
+async function switchYear(newYear){
+  if(!newYear || newYear===currentYear){ renderYearSelector(); return; }
+  currentYear=newYear;
+  await saveSettings();
+  clearSelection();
+  populateFilters();
+  renderTable();
+  renderYearSelector();
+  showToast(`📅 Stai visualizzando l'A.S. ${currentYear}`);
 }
 
 function renderArchive(){
@@ -1679,7 +1754,20 @@ function updateBulkBar(){
 // ═══════════════════════════════════════════
 function openPromoteModal(){
   if(selectedIds.size===0) return;
-  document.getElementById('promoNewYear').value=nextYear(currentYear);
+  const otherYears=[...anni].sort().filter(y=>y!==currentYear);
+  const yearSel=document.getElementById('promoNewYear');
+  const warn=document.getElementById('promoNoYearWarning');
+  const confirmBtn=document.querySelector('#promoteModal .btn-promote');
+  if(otherYears.length===0){
+    yearSel.innerHTML='';
+    warn.style.display='block';
+    if(confirmBtn) confirmBtn.disabled=true;
+  } else {
+    yearSel.innerHTML=otherYears.map(y=>`<option value="${y}">${y}</option>`).join('');
+    yearSel.value=otherYears.includes(nextYear(currentYear))?nextYear(currentYear):otherYears[0];
+    warn.style.display='none';
+    if(confirmBtn) confirmBtn.disabled=false;
+  }
   const list=document.getElementById('promoStudentList');
   list.innerHTML=[...selectedIds].map(id=>{
     const s=students.find(x=>String(x.id)===String(id)); if(!s) return '';
@@ -1690,35 +1778,50 @@ function openPromoteModal(){
   openModal('promoteModal');
 }
 
+function buildStoricoEntry(s, annoChiuso) {
+  const versato=(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0)+(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0)+(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0);
+  const dovuto=(parseFloat(s.totaleDovuto)||0)+(parseFloat(s.libriDovuto)||0)+(parseFloat(s.extraDovuto)||0);
+  return { anno: annoChiuso, versato, dovuto, saldo: calcSaldoTotale(s), dataChiusura: new Date().toISOString().slice(0,10) };
+}
+
+// Crea il nuovo record di uno studente "portato avanti" in un nuovo anno,
+// riportando debiti/crediti come saldo iniziale e conservando lo storico anni precedenti.
+function buildCarriedStudent(s, newYear, annoChiuso, operatore) {
+  const sT=calcSaldoTotale(s);
+  const storico=[...(s.storicoAnni||[]), buildStoricoEntry(s, annoChiuso)];
+  const ns={
+    id:String(Date.now()+Math.random()),
+    matricola:s.matricola,nome:s.nome,cognome:s.cognome,classe:s.classe,sezione:s.sezione,
+    corso:s.corso||'',dataNascita:s.dataNascita,genitore:s.genitore,email:s.email,telefono:s.telefono,
+    dataIscrizione:'',modalita:s.modalita,metodo:s.metodo,prezzoLezione:s.prezzoLezione||35,
+    quotaIscr:0,rata1:sT>0?sT:0,dataRata1:sT>0?new Date().toISOString().slice(0,10):'',
+    rata2:0,dataRata2:'',rata3:0,dataRata3:'',
+    noteRate:sT!==0?`Saldo riportato da A.S. ${annoChiuso}: ${sT>0?'+':''}€${sT.toFixed(2)}`:'',
+    totaleDovuto:sT<0?Math.abs(sT):0,
+    libri1:0,dataLibri1:'',libri2:0,dataLibri2:'',metodoLibri:'',libriDovuto:0,
+    corsoExtra1:'',extra1:0,dataExtra1:'',corsoExtra2:'',extra2:0,dataExtra2:'',extraDovuto:0,
+    note:`Continua da A.S. ${annoChiuso}`+(s.note?' — '+s.note:''),
+    lezioni:[],ritirato:false,continua:true,changelog:[],
+    anno:newYear, storicoAnni:storico,
+  };
+  addChangelogEntry(ns,operatore,`Promosso da A.S. ${annoChiuso}`);
+  return ns;
+}
+
 async function confirmPromote(){
-  const newYear=document.getElementById('promoNewYear').value.trim();
-  if(!newYear){alert('Inserisci l\'anno di destinazione.');return;}
+  const newYear=document.getElementById('promoNewYear').value;
+  if(!newYear){alert('Devi prima creare l\'anno di destinazione (pulsante "Crea nuovo anno ora").');return;}
   const toPromote=[...selectedIds].map(id=>students.find(x=>String(x.id)===String(id))).filter(Boolean);
   if(toPromote.length===0) return;
   const operatore=await requireOperator(`Promozione → A.S. ${newYear}`,'🎓'); if(!operatore) return;
   for(const s of toPromote){
-    const sT=calcSaldoTotale(s);
-    const ns={
-      id:String(Date.now()+Math.random()),
-      matricola:s.matricola,nome:s.nome,cognome:s.cognome,classe:s.classe,sezione:s.sezione,
-      corso:s.corso||'',dataNascita:s.dataNascita,genitore:s.genitore,email:s.email,telefono:s.telefono,
-      dataIscrizione:'',modalita:s.modalita,metodo:s.metodo,prezzoLezione:s.prezzoLezione||35,
-      quotaIscr:0,rata1:sT>0?sT:0,dataRata1:sT>0?new Date().toISOString().slice(0,10):'',
-      rata2:0,dataRata2:'',rata3:0,dataRata3:'',
-      noteRate:sT!==0?`Saldo riportato da A.S. ${currentYear}: ${sT>0?'+':''}€${sT.toFixed(2)}`:'',
-      totaleDovuto:sT<0?Math.abs(sT):0,
-      libri1:0,dataLibri1:'',libri2:0,dataLibri2:'',metodoLibri:'',libriDovuto:0,
-      corsoExtra1:'',extra1:0,dataExtra1:'',corsoExtra2:'',extra2:0,dataExtra2:'',extraDovuto:0,
-      note:`Continua da A.S. ${currentYear}`+(s.note?' — '+s.note:''),
-      lezioni:[],ritirato:false,continua:true,changelog:[],
-    };
-    addChangelogEntry(ns,operatore,`Promosso da A.S. ${currentYear}`);
+    const ns=buildCarriedStudent(s, newYear, currentYear, operatore);
     await window.fbSaveStudent(ns);
     s.promosso=true; s.annoPromosso=newYear;
     await window.fbSaveStudent(s);
   }
   closeModal('promoteModal'); clearSelection();
-  showToast(`✅ ${toPromote.length} studenti promossi!`);
+  showToast(`✅ ${toPromote.length} studenti spostati nell'A.S. ${newYear}!`);
 }
 
 // ═══════════════════════════════════════════
@@ -1885,7 +1988,7 @@ document.addEventListener('click', e => {
 });
 
 function getBackupData() {
-  return { _version: 3, _savedAt: new Date().toISOString(), _app: 'gestione-pagamenti', currentYear, students, archive, ritirati, courses, cestino };
+  return { _version: 4, _savedAt: new Date().toISOString(), _app: 'gestione-pagamenti', currentYear, anni, students, archive, ritirati, courses, cestino };
 }
 
 function backupJSON() {
@@ -1900,7 +2003,7 @@ function backupJSON() {
 }
 
 function backupCSV() {
-  const csv = toCSV(students);
+  const csv = toCSV(studentsThisYear());
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1939,14 +2042,16 @@ function restoreFromJSON(event) {
       courses     = data.courses  || getDefaultCourses();
       cestino     = data.cestino  || [];
       currentYear = data.currentYear || '2025–2026';
+      anni        = Array.isArray(data.anni) && data.anni.length ? data.anni : [currentYear];
+      if(!anni.includes(currentYear)) anni.push(currentYear);
       // Push everything to Firebase
       (async () => {
         for (const s of students) await window.fbSaveStudent(s);
         for (const a of archive) await window.fbSaveArchive(a);
         for (const r of ritirati) await window.fbSaveRitirato(r);
         for (const c of cestino) await window.fbSaveCestino(c);
-        await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori() });
-        document.getElementById('currentYearBadge').textContent = 'A.S. ' + currentYear;
+        await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori(), anni });
+        renderYearSelector();
         populateFilters(); renderTable(); updateCestinoTabBadge();
         showToast('✅ Ripristino completato!');
       })();
