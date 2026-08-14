@@ -662,9 +662,9 @@ const USER_DOMAIN = 'quote-scuola.local';
 // ── Whitelist utenti autorizzati (username, senza dominio) ──
 // Deve corrispondere esattamente agli account creati in Firebase Console.
 const ALLOWED_USERS = [
+  'amministrazione',
   'simone',
   'svetlana',
-  'amministrazione',
 ];
 
 // ── Auth UI ──
@@ -1373,6 +1373,7 @@ function openViewModal(id, externalStudent){
         ${row('Genitore',s.genitore||'–')}${row('Telefono',s.telefono||'–')}${row('Email',s.email||'–')}</table></div>
       <div><div class="modal-section-title">💳 Pagamento</div><table style="width:100%;border-collapse:collapse">
         ${row('Modalità',s.modalita||'–')}${row('Metodo',s.metodo||'–')}
+        ${row('Quota Iscrizione',s.quotaIscr?`€ ${parseFloat(s.quotaIscr).toFixed(2)}`:'€ 0.00')}
         ${isFreqLibera(s)?row('Lezioni Fatte',`${(s.lezioni||[]).length}`)+row('Lezioni Pagate',`${calcLezioniPagate(s).toFixed(1)}${(parseFloat(s.lezioniPagate)||0)>0?' (manuale)':''}`):row('Rata 1',s.rata1?`€ ${parseFloat(s.rata1).toFixed(2)}${s.dataRata1?' — '+fmtDate(s.dataRata1):''}`:'')}
         ${row('Totale dovuto',s.totaleDovuto?`€ ${parseFloat(s.totaleDovuto).toFixed(2)}`:'')}
       </table></div>
