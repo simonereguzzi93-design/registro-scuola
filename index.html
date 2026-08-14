@@ -395,6 +395,14 @@
         </div>
         <div class="form-group"><label>Quota Iscrizione (€)</label><input type="number" id="f_quotaIscr" placeholder="0" step="0.01"></div>
         <div class="form-group" id="fg_prezzoLezione" style="display:none"><label>Prezzo per Lezione (€)</label><input type="number" id="f_prezzoLezione" placeholder="35" step="0.01" value="35"></div>
+        <div class="form-group" id="fg_lezioniFatteOrd" style="display:none">
+          <label>Lezioni Fatte</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="f_lezioniFatteOrdDisplay" readonly style="background:var(--surface2);cursor:not-allowed" placeholder="0">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openFreqModal(editingId)" style="white-space:nowrap">📋 Registro</button>
+          </div>
+        </div>
+        <div class="form-group" id="fg_lezioniPagateOrd" style="display:none"><label>Lezioni Pagate</label><input type="number" id="f_lezioniPagate" placeholder="0" min="0" step="0.5"></div>
         <div class="form-group"><label>Rata 1 (€)</label><input type="number" id="f_rata1" placeholder="0" step="0.01"></div>
         <div class="form-group"><label>Data Versamento Rata 1</label><input type="date" id="f_dataRata1"></div>
         <div class="form-group"><label>⏰ Scadenza Rata 1</label><input type="date" id="f_scadRata1"></div>
@@ -430,17 +438,19 @@
           <input type="hidden" id="f_ordineFiglio" value="1">
         </div>
         <div class="dovuto-box">💰 <label for="f_extraDovuto">Totale Corsi Extra Dovuto (€)</label><input type="number" id="f_extraDovuto" placeholder="0" step="0.01"></div>
-        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">
+        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:10px">
           <div class="form-group"><label>Corso Extra 1</label><select id="f_corsoExtra1"><option value="">— Seleziona —</option></select></div>
           <div class="form-group"><label>Versamento Extra 1 (€)</label><input type="number" id="f_extra1" placeholder="0" step="0.01"></div>
-          <div class="form-group"><label>Lezioni Coperte</label><input type="number" id="f_lezioniExtra1" placeholder="0" min="0" step="1"></div>
+          <div class="form-group"><label>Lezioni Pagate</label><input type="number" id="f_lezioniExtra1" placeholder="0" min="0" step="1"></div>
+          <div class="form-group"><label>Lezioni Fatte</label><input type="number" id="f_lezioniFatteExtra1" placeholder="0" min="0" step="1"></div>
           <div class="form-group"><label>Data Versamento 1</label><input type="date" id="f_dataExtra1"></div>
           <div class="form-group"><label>⏰ Scadenza Extra 1</label><input type="date" id="f_scadExtra1"></div>
         </div>
-        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">
+        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:10px">
           <div class="form-group"><label>Corso Extra 2</label><select id="f_corsoExtra2"><option value="">— Seleziona —</option></select></div>
           <div class="form-group"><label>Versamento Extra 2 (€)</label><input type="number" id="f_extra2" placeholder="0" step="0.01"></div>
-          <div class="form-group"><label>Lezioni Coperte</label><input type="number" id="f_lezioniExtra2" placeholder="0" min="0" step="1"></div>
+          <div class="form-group"><label>Lezioni Pagate</label><input type="number" id="f_lezioniExtra2" placeholder="0" min="0" step="1"></div>
+          <div class="form-group"><label>Lezioni Fatte</label><input type="number" id="f_lezioniFatteExtra2" placeholder="0" min="0" step="1"></div>
           <div class="form-group"><label>Data Versamento 2</label><input type="date" id="f_dataExtra2"></div>
           <div class="form-group"><label>⏰ Scadenza Extra 2</label><input type="date" id="f_scadExtra2"></div>
         </div>
@@ -1068,11 +1078,19 @@ function studentsThisYear() {
 // ═══════════════════════════════════════════
 function isFreqLibera(s) { return s.modalita && s.modalita.includes('Libera'); }
 
+// Lezioni pagate: usa il valore manuale se impostato, altrimenti lo calcola dal versato/prezzo lezione
+function calcLezioniPagate(s) {
+  const manuale = parseFloat(s.lezioniPagate)||0;
+  if (manuale>0) return manuale;
+  const prezzoLezione = parseFloat(s.prezzoLezione)||35;
+  const versato = (parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
+  return prezzoLezione>0 ? versato/prezzoLezione : 0;
+}
+
 function calcSaldoOrdinario(s) {
   if (isFreqLibera(s)) {
     const prezzoLezione = parseFloat(s.prezzoLezione)||35;
-    const versato = (parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
-    const pagate = prezzoLezione>0 ? versato/prezzoLezione : 0;
+    const pagate = calcLezioniPagate(s);
     const diff = (s.lezioni||[]).length - pagate;
     return diff<=0 ? 0 : -(diff*prezzoLezione);
   }
@@ -1091,6 +1109,15 @@ function calcSaldoExtra(s) {
   return dovuto===0?0:versato-dovuto;
 }
 function calcSaldoTotale(s) { return calcSaldoOrdinario(s)+calcSaldoLibri(s)+calcSaldoExtra(s); }
+
+// Vero se lo studente ha più lezioni extra fatte che pagate (per corso 1 o 2), anche se il saldo € è a posto
+function hasLezioniExtraDebito(s) {
+  const d1 = s.corsoExtra1 && (parseInt(s.lezioniFatteExtra1)||0) > (parseInt(s.lezioniExtra1)||0);
+  const d2 = s.corsoExtra2 && (parseInt(s.lezioniFatteExtra2)||0) > (parseInt(s.lezioniExtra2)||0);
+  return !!(d1||d2);
+}
+// Vero se lo studente va considerato "in debito" nell'elenco: saldo € negativo OPPURE lezioni extra non pagate
+function isDebitore(s) { return calcSaldoTotale(s)<0 || hasLezioniExtraDebito(s); }
 
 function fmtEuro(v) {
   if(v===0) return '<span class="saldo-zero">€ 0</span>';
@@ -1129,7 +1156,7 @@ function getFiltered() {
     const matchM=!fm||s.modalita===fm;
     const matchCo=!fco||s.corso===fco;
     let matchS=true;
-    if(fs){ const sT=calcSaldoTotale(s); if(fs==='debito') matchS=sT<0; if(fs==='pari') matchS=sT===0; if(fs==='credito') matchS=sT>0; }
+    if(fs){ const sT=calcSaldoTotale(s); if(fs==='debito') matchS=isDebitore(s); if(fs==='pari') matchS=sT===0&&!hasLezioniExtraDebito(s); if(fs==='credito') matchS=sT>0&&!hasLezioniExtraDebito(s); }
     return matchQ&&matchC&&matchM&&matchCo&&matchS;
   });
 }
@@ -1181,8 +1208,8 @@ function populateFilters() {
 function renderStats() {
   const yearStudents=studentsThisYear();
   const total=yearStudents.length;
-  const inDebito=yearStudents.filter(s=>calcSaldoTotale(s)<0).length;
-  const inPari=yearStudents.filter(s=>calcSaldoTotale(s)===0).length;
+  const inDebito=yearStudents.filter(s=>isDebitore(s)).length;
+  const inPari=yearStudents.filter(s=>calcSaldoTotale(s)===0&&!hasLezioniExtraDebito(s)).length;
   const totV=yearStudents.reduce((a,s)=>a+(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0)+(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0)+(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0),0);
   const totD=yearStudents.reduce((a,s)=>a+(parseFloat(s.totaleDovuto)||0)+(parseFloat(s.libriDovuto)||0)+(parseFloat(s.extraDovuto)||0),0);
   document.getElementById('statsBar').innerHTML=`
@@ -1204,9 +1231,11 @@ function renderTable() {
   empty.style.display='none';
   tbody.innerHTML=filtered.map(s=>{
     const sO=calcSaldoOrdinario(s),sL=calcSaldoLibri(s),sE=calcSaldoExtra(s),sT=sO+sL+sE;
+    const lezDeb=hasLezioniExtraDebito(s);
     let statoBadge='';
     if(s.ritirato) statoBadge='<span class="badge badge-orange">📤 Ritirato</span>';
-    else if(sT<0) statoBadge='<span class="badge badge-red">⚠️ Debito</span>';
+    else if(sT<0) statoBadge=`<span class="badge badge-red">⚠️ Debito</span>${lezDeb?' <span class="badge badge-red" title="Lezioni extra fatte non tutte pagate">📚⚠️</span>':''}`;
+    else if(lezDeb) statoBadge='<span class="badge badge-red">⚠️ Debito lezioni extra</span>';
     else if(sT===0) statoBadge='<span class="badge badge-green">✅ In pari</span>';
     else statoBadge='<span class="badge badge-blue">💙 Credito</span>';
     const modalBadge=s.modalita?`<span class="badge badge-gray" style="font-size:0.72rem">${s.modalita.split('/')[0].trim()}</span>`:'–';
@@ -1253,7 +1282,7 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 const fields=['matricola','nome','cognome','classe','sezione','corso','dataNascita','genitore','email','telefono','ordineFiglio',
   'dataIscrizione','modalita','metodo','quotaIscr','rata1','dataRata1','scadRata1','rata2','dataRata2','scadRata2','rata3','dataRata3','scadRata3',
   'noteRate','totaleDovuto','libri1','dataLibri1','libri2','dataLibri2','metodoLibri','libriDovuto',
-  'corsoExtra1','extra1','lezioniExtra1','dataExtra1','scadExtra1','corsoExtra2','extra2','lezioniExtra2','dataExtra2','scadExtra2','extraDovuto','prezzoLezione','note'];
+  'corsoExtra1','extra1','lezioniExtra1','lezioniFatteExtra1','dataExtra1','scadExtra1','corsoExtra2','extra2','lezioniExtra2','lezioniFatteExtra2','dataExtra2','scadExtra2','extraDovuto','prezzoLezione','lezioniPagate','note'];
 
 function setOrdineFiglio(n){
   document.getElementById('f_ordineFiglio').value=n;
@@ -1284,6 +1313,12 @@ function ordineFiglioLabel(v){
   const n=v==='secondo'?2:(v==='primo'||!v?1:(parseInt(v)||1));
   return n+'° Figlio';
 }
+function extraLezioniInfo(pagate,fatte){
+  pagate=parseInt(pagate)||0; fatte=parseInt(fatte)||0;
+  if(!pagate && !fatte) return '';
+  const debito=fatte>pagate;
+  return ` — ${fatte} fatte / ${pagate} pagate${debito?` <span class="badge badge-red" style="margin-left:4px">⚠️ ${fatte-pagate} da pagare</span>`:''}`;
+}
 
 function clearForm(){
   fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el)el.value='';});
@@ -1302,6 +1337,7 @@ function openAddModal(){
   editingId=null; clearForm();
   document.getElementById('modalTitle').textContent='Nuovo Studente';
   const m=document.getElementById('f_matricola'); if(m) m.value=getNextMatricola();
+  toggleFreqFields();
   openModal('studentModal');
 }
 
@@ -1313,6 +1349,7 @@ function openEditModal(id){
   fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el&&s[f]!==undefined)el.value=s[f];});
   document.getElementById('f_ordineFiglio').value = s.ordineFiglio==='secondo'?2:(s.ordineFiglio==='primo'||!s.ordineFiglio?1:(parseInt(s.ordineFiglio)||1));
   refreshOrdineFiglioToggle();
+  toggleFreqFields();
   openModal('studentModal');
 }
 
@@ -1335,12 +1372,12 @@ function openViewModal(id, externalStudent){
         ${row('Genitore',s.genitore||'–')}${row('Telefono',s.telefono||'–')}${row('Email',s.email||'–')}</table></div>
       <div><div class="modal-section-title">💳 Pagamento</div><table style="width:100%;border-collapse:collapse">
         ${row('Modalità',s.modalita||'–')}${row('Metodo',s.metodo||'–')}
-        ${row('Rata 1',s.rata1?`€ ${parseFloat(s.rata1).toFixed(2)}${s.dataRata1?' — '+fmtDate(s.dataRata1):''}`:'')}
+        ${isFreqLibera(s)?row('Lezioni Fatte',`${(s.lezioni||[]).length}`)+row('Lezioni Pagate',`${calcLezioniPagate(s).toFixed(1)}${(parseFloat(s.lezioniPagate)||0)>0?' (manuale)':''}`):row('Rata 1',s.rata1?`€ ${parseFloat(s.rata1).toFixed(2)}${s.dataRata1?' — '+fmtDate(s.dataRata1):''}`:'')}
         ${row('Totale dovuto',s.totaleDovuto?`€ ${parseFloat(s.totaleDovuto).toFixed(2)}`:'')}
       </table></div>
       <div><div class="modal-section-title">🎨 Corsi Extra</div><table style="width:100%;border-collapse:collapse">
-        ${s.corsoExtra1?row(s.corsoExtra1,`€ ${parseFloat(s.extra1||0).toFixed(2)}${s.lezioniExtra1?` — ${s.lezioniExtra1} lezioni coperte`:''}`):''}
-        ${s.corsoExtra2?row(s.corsoExtra2,`€ ${parseFloat(s.extra2||0).toFixed(2)}${s.lezioniExtra2?` — ${s.lezioniExtra2} lezioni coperte`:''}`):''}
+        ${s.corsoExtra1?row(s.corsoExtra1,`€ ${parseFloat(s.extra1||0).toFixed(2)}${extraLezioniInfo(s.lezioniExtra1,s.lezioniFatteExtra1)}`):''}
+        ${s.corsoExtra2?row(s.corsoExtra2,`€ ${parseFloat(s.extra2||0).toFixed(2)}${extraLezioniInfo(s.lezioniExtra2,s.lezioniFatteExtra2)}`):''}
         ${!s.corsoExtra1&&!s.corsoExtra2?'<tr><td style="padding:6px 10px;font-size:0.85rem;color:var(--text3)">Nessun corso extra</td></tr>':''}
       </table></div>
       <div><div class="modal-section-title">📊 Saldi</div><table style="width:100%;border-collapse:collapse">
@@ -1385,7 +1422,7 @@ async function saveStudent() {
   const isNew=!editingId;
   const operatore=await requireOperator(isNew?`Nuovo studente: ${nome} ${cognome}`:`Modifica: ${nome} ${cognome}`,isNew?'➕':'✏️');
   if(!operatore) return;
-  const numFields=['matricola','quotaIscr','rata1','rata2','rata3','totaleDovuto','libri1','libri2','libriDovuto','extra1','extra2','extraDovuto'];
+  const numFields=['matricola','quotaIscr','rata1','rata2','rata3','totaleDovuto','libri1','libri2','libriDovuto','extra1','extra2','extraDovuto','lezioniExtra1','lezioniFatteExtra1','lezioniExtra2','lezioniFatteExtra2','lezioniPagate'];
   const obj={id:editingId||String(Date.now())};
   fields.forEach(f=>{const el=document.getElementById('f_'+f);if(!el)return;obj[f]=numFields.includes(f)?(parseFloat(el.value)||0):el.value;});
   if(editingId){
@@ -1402,7 +1439,22 @@ async function saveStudent() {
 
 function toggleFreqFields(){
   const m=document.getElementById('f_modalita').value;
-  document.getElementById('fg_prezzoLezione').style.display=m.includes('Libera')?'':'none';
+  const isLibera=m.includes('Libera');
+  document.getElementById('fg_prezzoLezione').style.display=isLibera?'':'none';
+  document.getElementById('fg_lezioniFatteOrd').style.display=isLibera?'':'none';
+  document.getElementById('fg_lezioniPagateOrd').style.display=isLibera?'':'none';
+  const display=document.getElementById('f_lezioniFatteOrdDisplay');
+  const btn=document.querySelector('#fg_lezioniFatteOrd button');
+  if(isLibera){
+    if(editingId){
+      const s=students.find(x=>String(x.id)===String(editingId));
+      display.value=s&&s.lezioni?s.lezioni.length:0;
+      if(btn){btn.disabled=false;btn.title='';}
+    } else {
+      display.value=0;
+      if(btn){btn.disabled=true;btn.title='Salva prima lo studente per poter registrare le lezioni';}
+    }
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -1847,13 +1899,15 @@ function openFreqModal(id){
 function renderFreqModal(s){
   if(!s.lezioni) s.lezioni=[];
   const pL=parseFloat(s.prezzoLezione)||35;
-  const versato=(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
-  const pagate=pL>0?versato/pL:0;
+  const pagate=calcLezioniPagate(s);
+  const isManuale=(parseFloat(s.lezioniPagate)||0)>0;
   const fatte=s.lezioni.length;
   const diff=fatte-pagate;
   const isD=diff>0;
-  const boxes=[{val:fatte,lbl:'Lezioni fatte'},{val:pagate.toFixed(1),lbl:isD?`⚠️ Debito ${diff.toFixed(1)} lez.`:'✅ Pagate',cls:isD?'debito':'ok'},{val:`€ ${pL}`,lbl:'Prezzo/lez.'}];
+  const boxes=[{val:fatte,lbl:'Lezioni fatte'},{val:pagate.toFixed(1),lbl:isD?`⚠️ Debito ${diff.toFixed(1)} lez.`:(isManuale?'✅ Pagate (manuale)':'✅ Pagate'),cls:isD?'debito':'ok'},{val:`€ ${pL}`,lbl:'Prezzo/lez.'}];
   const boxHtml=boxes.map(b=>`<div class="freq-box ${b.cls||''}"><div class="fb-val">${b.val}</div><div class="fb-lbl">${b.lbl}</div></div>`).join('');
+  const ordDisplay=document.getElementById('f_lezioniFatteOrdDisplay');
+  if(ordDisplay && String(editingId)===String(s.id)) ordDisplay.value=fatte;
   const lezHtml=s.lezioni.length===0?'<div style="color:var(--text3);font-size:0.87rem;padding:12px 0">Nessuna lezione.</div>':s.lezioni.map((l,i)=>`<div class="freq-lezione-item"><span class="fl-num">${i+1}</span><span>${l.note||'Lezione'}</span><span class="fl-date">${fmtDate(l.data)}</span><button class="btn-icon" onclick="eliminaLezione(${i})">🗑</button></div>`).join('');
   document.getElementById('freqModalBody').innerHTML=`
     <div class="freq-summary">${boxHtml}</div>
@@ -2000,9 +2054,9 @@ function buildCarriedStudent(s, newYear, annoChiuso, operatore) {
     noteRate:sT!==0?`Saldo riportato da A.S. ${annoChiuso}: ${sT>0?'+':''}€${sT.toFixed(2)}`:'',
     totaleDovuto:sT<0?Math.abs(sT):0,
     libri1:0,dataLibri1:'',libri2:0,dataLibri2:'',metodoLibri:'',libriDovuto:0,
-    corsoExtra1:'',extra1:0,lezioniExtra1:0,dataExtra1:'',scadExtra1:'',corsoExtra2:'',extra2:0,lezioniExtra2:0,dataExtra2:'',scadExtra2:'',extraDovuto:0,
+    corsoExtra1:'',extra1:0,lezioniExtra1:0,lezioniFatteExtra1:0,dataExtra1:'',scadExtra1:'',corsoExtra2:'',extra2:0,lezioniExtra2:0,lezioniFatteExtra2:0,dataExtra2:'',scadExtra2:'',extraDovuto:0,
     note:`Continua da A.S. ${annoChiuso}`+(s.note?' — '+s.note:''),
-    lezioni:[],ritirato:false,continua:true,changelog:[],
+    lezioni:[],lezioniPagate:0,ritirato:false,continua:true,changelog:[],
     anno:newYear, storicoAnni:storico,
   };
   addChangelogEntry(ns,operatore,`Promosso da A.S. ${annoChiuso}`);
@@ -2219,9 +2273,9 @@ function generateExcel(){
     .sort((a,b)=>(a.cognome||'').localeCompare(b.cognome||''));
 
   const headers=['Matricola','Cognome','Nome','Classe','Sezione','Genitore','Telefono','Email','Ordine Figlio','Modalità',
-    'Versato Ordinario (€)','Dovuto Ordinario (€)','Saldo Ordinario (€)',
+    'Versato Ordinario (€)','Dovuto Ordinario (€)','Saldo Ordinario (€)','Lezioni Fatte (Freq. Libera)','Lezioni Pagate (Freq. Libera)',
     'Versato Libri (€)','Dovuto Libri (€)','Saldo Libri (€)',
-    'Corso Extra 1','Lezioni Coperte 1','Corso Extra 2','Lezioni Coperte 2','Versato Extra (€)','Dovuto Extra (€)','Saldo Extra (€)',
+    'Corso Extra 1','Lezioni Pagate 1','Lezioni Fatte 1','Corso Extra 2','Lezioni Pagate 2','Lezioni Fatte 2','Versato Extra (€)','Dovuto Extra (€)','Saldo Extra (€)',
     'Saldo Totale (€)','Stato','Note'];
 
   const rows=sel.map(s=>{
@@ -2229,13 +2283,15 @@ function generateExcel(){
     const versatoLibri=(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0);
     const versatoExtra=(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0);
     const sT=calcSaldoTotale(s);
-    const stato=sT<0?'Debito':sT===0?'In pari':'Credito';
+    const stato=isDebitore(s)?'Debito':sT===0?'In pari':'Credito';
     return [
       s.matricola||'', s.cognome||'', s.nome||'', s.classe||'', s.sezione||'', s.genitore||'', s.telefono||'', s.email||'',
       ordineFiglioLabel(s.ordineFiglio), s.modalita||'',
-      versatoOrd, parseFloat(s.totaleDovuto)||0, calcSaldoOrdinario(s),
+      versatoOrd, parseFloat(s.totaleDovuto)||0, calcSaldoOrdinario(s), isFreqLibera(s)?(s.lezioni||[]).length:'', isFreqLibera(s)?calcLezioniPagate(s):'',
       versatoLibri, parseFloat(s.libriDovuto)||0, calcSaldoLibri(s),
-      s.corsoExtra1||'', parseFloat(s.lezioniExtra1)||0, s.corsoExtra2||'', parseFloat(s.lezioniExtra2)||0, versatoExtra, parseFloat(s.extraDovuto)||0, calcSaldoExtra(s),
+      s.corsoExtra1||'', parseFloat(s.lezioniExtra1)||0, parseFloat(s.lezioniFatteExtra1)||0,
+      s.corsoExtra2||'', parseFloat(s.lezioniExtra2)||0, parseFloat(s.lezioniFatteExtra2)||0,
+      versatoExtra, parseFloat(s.extraDovuto)||0, calcSaldoExtra(s),
       sT, stato, s.note||''
     ];
   });
