@@ -80,6 +80,13 @@
   .form-group input, .form-group select, .form-group textarea { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.9rem; background: var(--bg); outline: none; transition: border-color .2s; }
   .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent2); }
   .section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); border-bottom: 2px solid var(--accent-light); padding-bottom: 4px; margin: 20px 0 12px; grid-column: 1 / -1; }
+  .dovuto-box { grid-column: 1 / -1; background: var(--accent-light); border: 1.5px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin-bottom: 4px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .dovuto-box label { font-size: 0.8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin: 0; white-space: nowrap; }
+  .dovuto-box input { max-width: 160px; padding: 8px 12px; border: 1.5px solid var(--accent); border-radius: 8px; font-family: inherit; font-size: 1rem; font-weight: 700; background: white; outline: none; }
+  .toggle-group { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .toggle-group > span.tg-label { font-size: 0.78rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; }
+  .toggle-group .tg-btn { padding: 8px 16px; border: 1.5px solid var(--border); background: var(--bg); border-radius: 8px; font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--text2); transition: all .15s; }
+  .toggle-group .tg-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
   .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
   .confirm-modal { max-width: 420px; }
   .confirm-body { padding: 24px; text-align: center; }
@@ -220,6 +227,7 @@
 
 <div class="tab-bar">
   <button class="tab active" onclick="switchTab('studenti')">👥 Studenti</button>
+  <button class="tab" onclick="switchTab('scadenze')" id="scadenzeTab">🔔 Scadenze</button>
   <button class="tab" onclick="switchTab('archivio')">🗃 Archivio</button>
   <button class="tab" onclick="switchTab('cestino')" id="cestinoTab">🗑 Cestino</button>
 </div>
@@ -269,6 +277,7 @@
     <select id="filterCorso" onchange="renderTable()"><option value="">Tutti i corsi</option></select>
     <button class="btn btn-primary" onclick="openAddModal()">+ Nuovo Studente</button>
     <button class="btn btn-secondary" onclick="exportCSV()">⬇ Esporta CSV</button>
+    <button class="btn btn-secondary" onclick="openExportModal()">📊 Esporta Excel</button>
     <button class="btn btn-secondary" onclick="openCoursesModal()">⚙️ Corsi</button>
     <button class="btn btn-secondary" onclick="openOperatoriModal()">👥 Personale</button>
   </div>
@@ -308,6 +317,7 @@
 </div>
 
 <div id="tab-archivio" style="display:none"><div class="main" style="padding-top:24px"><div id="archiveContent"></div></div></div>
+<div id="tab-scadenze" style="display:none"><div class="main" style="padding-top:24px"><div id="scadenzeContent"></div></div></div>
 <div id="tab-cestino" style="display:none"><div class="main" style="padding-top:24px"><div id="cestinoContent"></div></div></div>
 
 <!-- MODAL STUDENTE -->
@@ -352,6 +362,15 @@
         <div class="form-group"><label>Email</label><input type="email" id="f_email" placeholder="email@esempio.com"></div>
         <div class="form-group"><label>Telefono</label><input type="text" id="f_telefono" placeholder="+39 ..."></div>
         <div class="section-title">💳 Pagamento Ordinario</div>
+        <div class="toggle-group">
+          <span class="tg-label">👨‍👩‍👧 Ordine Figlio</span>
+          <button type="button" class="tg-btn tg-figlio-n" data-n="1" onclick="setOrdineFiglio(1)">1°</button>
+          <button type="button" class="tg-btn tg-figlio-n" data-n="2" onclick="setOrdineFiglio(2)">2°</button>
+          <button type="button" class="tg-btn tg-figlio-n" data-n="3" onclick="setOrdineFiglio(3)">3°</button>
+          <button type="button" class="tg-btn tg-figlio-altro" onclick="setOrdineFiglioAltro()">4°+</button>
+          <input type="number" class="of-manual" min="4" step="1" placeholder="N°" style="display:none;width:70px;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;font-family:inherit;font-size:0.9rem" oninput="onOrdineFiglioManualChange(this.value)">
+        </div>
+        <div class="dovuto-box">💰 <label for="f_totaleDovuto">Totale Dovuto Ordinario (€)</label><input type="number" id="f_totaleDovuto" placeholder="0" step="0.01"></div>
         <div class="form-group"><label>Data Iscrizione</label><input type="date" id="f_dataIscrizione"></div>
         <div class="form-group">
           <label>Modalità Pagamento</label>
@@ -377,19 +396,21 @@
         <div class="form-group"><label>Quota Iscrizione (€)</label><input type="number" id="f_quotaIscr" placeholder="0" step="0.01"></div>
         <div class="form-group" id="fg_prezzoLezione" style="display:none"><label>Prezzo per Lezione (€)</label><input type="number" id="f_prezzoLezione" placeholder="35" step="0.01" value="35"></div>
         <div class="form-group"><label>Rata 1 (€)</label><input type="number" id="f_rata1" placeholder="0" step="0.01"></div>
-        <div class="form-group"><label>Data Rata 1</label><input type="date" id="f_dataRata1"></div>
+        <div class="form-group"><label>Data Versamento Rata 1</label><input type="date" id="f_dataRata1"></div>
+        <div class="form-group"><label>⏰ Scadenza Rata 1</label><input type="date" id="f_scadRata1"></div>
         <div class="form-group"><label>Rata 2 (€)</label><input type="number" id="f_rata2" placeholder="0" step="0.01"></div>
-        <div class="form-group"><label>Data Rata 2</label><input type="date" id="f_dataRata2"></div>
+        <div class="form-group"><label>Data Versamento Rata 2</label><input type="date" id="f_dataRata2"></div>
+        <div class="form-group"><label>⏰ Scadenza Rata 2</label><input type="date" id="f_scadRata2"></div>
         <div class="form-group"><label>Rata 3 (€)</label><input type="number" id="f_rata3" placeholder="0" step="0.01"></div>
-        <div class="form-group"><label>Data Rata 3</label><input type="date" id="f_dataRata3"></div>
-        <div class="form-group"><label>Totale Dovuto Ordinario (€)</label><input type="number" id="f_totaleDovuto" placeholder="0" step="0.01"></div>
+        <div class="form-group"><label>Data Versamento Rata 3</label><input type="date" id="f_dataRata3"></div>
+        <div class="form-group"><label>⏰ Scadenza Rata 3</label><input type="date" id="f_scadRata3"></div>
         <div class="form-group"><label>Note Rate</label><input type="text" id="f_noteRate" placeholder="es. Rata 3 dovuta"></div>
         <div class="section-title">📚 Libri</div>
+        <div class="dovuto-box">💰 <label for="f_libriDovuto">Totale Libri Dovuto (€)</label><input type="number" id="f_libriDovuto" placeholder="0" step="0.01"></div>
         <div class="form-group"><label>Versamento Libri 1 (€)</label><input type="number" id="f_libri1" placeholder="0" step="0.01"></div>
         <div class="form-group"><label>Data Versamento Libri 1</label><input type="date" id="f_dataLibri1"></div>
         <div class="form-group"><label>Versamento Libri 2 (€)</label><input type="number" id="f_libri2" placeholder="0" step="0.01"></div>
         <div class="form-group"><label>Data Versamento Libri 2</label><input type="date" id="f_dataLibri2"></div>
-        <div class="form-group"><label>Totale Libri Dovuto (€)</label><input type="number" id="f_libriDovuto" placeholder="0" step="0.01"></div>
         <div class="form-group"><label>Metodo Pagamento Libri</label>
           <select id="f_metodoLibri">
             <option value="">Seleziona...</option>
@@ -399,17 +420,30 @@
           </select>
         </div>
         <div class="section-title">🎨 Corsi Extra</div>
-        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="toggle-group">
+          <span class="tg-label">👨‍👩‍👧 Ordine Figlio</span>
+          <button type="button" class="tg-btn tg-figlio-n" data-n="1" onclick="setOrdineFiglio(1)">1°</button>
+          <button type="button" class="tg-btn tg-figlio-n" data-n="2" onclick="setOrdineFiglio(2)">2°</button>
+          <button type="button" class="tg-btn tg-figlio-n" data-n="3" onclick="setOrdineFiglio(3)">3°</button>
+          <button type="button" class="tg-btn tg-figlio-altro" onclick="setOrdineFiglioAltro()">4°+</button>
+          <input type="number" class="of-manual" min="4" step="1" placeholder="N°" style="display:none;width:70px;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;font-family:inherit;font-size:0.9rem" oninput="onOrdineFiglioManualChange(this.value)">
+          <input type="hidden" id="f_ordineFiglio" value="1">
+        </div>
+        <div class="dovuto-box">💰 <label for="f_extraDovuto">Totale Corsi Extra Dovuto (€)</label><input type="number" id="f_extraDovuto" placeholder="0" step="0.01"></div>
+        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">
           <div class="form-group"><label>Corso Extra 1</label><select id="f_corsoExtra1"><option value="">— Seleziona —</option></select></div>
           <div class="form-group"><label>Versamento Extra 1 (€)</label><input type="number" id="f_extra1" placeholder="0" step="0.01"></div>
-          <div class="form-group"><label>Data Extra 1</label><input type="date" id="f_dataExtra1"></div>
+          <div class="form-group"><label>Lezioni Coperte</label><input type="number" id="f_lezioniExtra1" placeholder="0" min="0" step="1"></div>
+          <div class="form-group"><label>Data Versamento 1</label><input type="date" id="f_dataExtra1"></div>
+          <div class="form-group"><label>⏰ Scadenza Extra 1</label><input type="date" id="f_scadExtra1"></div>
         </div>
-        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="form-group full" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">
           <div class="form-group"><label>Corso Extra 2</label><select id="f_corsoExtra2"><option value="">— Seleziona —</option></select></div>
           <div class="form-group"><label>Versamento Extra 2 (€)</label><input type="number" id="f_extra2" placeholder="0" step="0.01"></div>
-          <div class="form-group"><label>Data Extra 2</label><input type="date" id="f_dataExtra2"></div>
+          <div class="form-group"><label>Lezioni Coperte</label><input type="number" id="f_lezioniExtra2" placeholder="0" min="0" step="1"></div>
+          <div class="form-group"><label>Data Versamento 2</label><input type="date" id="f_dataExtra2"></div>
+          <div class="form-group"><label>⏰ Scadenza Extra 2</label><input type="date" id="f_scadExtra2"></div>
         </div>
-        <div class="form-group"><label>Totale Corsi Extra Dovuto (€)</label><input type="number" id="f_extraDovuto" placeholder="0" step="0.01"></div>
         <div class="section-title">📝 Note</div>
         <div class="form-group full"><label>Note aggiuntive</label><textarea id="f_note" rows="3" placeholder="Note libere..."></textarea></div>
       </div>
@@ -417,6 +451,34 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('studentModal')">Annulla</button>
       <button class="btn btn-primary" onclick="saveStudent()">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT EXCEL MODAL -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h2>📊 Esporta Excel</h2>
+      <button class="modal-close" onclick="closeModal('exportModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px">
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <select id="exportClasseFilter" onchange="renderExportList()" style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.88rem;background:var(--bg)"><option value="">Tutte le classi</option></select>
+        <input type="text" id="exportSearch" placeholder="🔍 Cerca nome..." oninput="renderExportList()" style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.88rem;background:var(--bg)">
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="exportSelectVisible(true)">☑ Seleziona visibili</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportSelectVisible(false)">☐ Deseleziona visibili</button>
+        </div>
+        <span id="exportCountLabel" style="font-size:0.82rem;color:var(--text3);font-weight:600">0 selezionati</span>
+      </div>
+      <div id="exportList" style="max-height:340px;overflow-y:auto;border:1.5px solid var(--border);border-radius:10px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('exportModal')">Annulla</button>
+      <button class="btn btn-primary" onclick="generateExcel()">⬇ Esporta Excel</button>
     </div>
   </div>
 </div>
@@ -536,6 +598,7 @@
 
 <!-- CryptoJS per AES-256 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- SCHERMATA PASSWORD CIFRATURA -->
 <div id="encScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:998;align-items:center;justify-content:center;flex-direction:column;">
@@ -712,7 +775,7 @@ function startListeners() {
   unsubCestino = onSnapshot(collection(db, COLS.cestino), snap => {
     cestino = [];
     snap.forEach(d => cestino.push({ id: d.id, ...d.data() }));
-    updateCestinoTabBadge();
+    updateCestinoTabBadge(); updateScadenzeTabBadge();
   });
 
   // Archive
@@ -1187,12 +1250,46 @@ function renderTable() {
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
-const fields=['matricola','nome','cognome','classe','sezione','corso','dataNascita','genitore','email','telefono',
-  'dataIscrizione','modalita','metodo','quotaIscr','rata1','dataRata1','rata2','dataRata2','rata3','dataRata3',
+const fields=['matricola','nome','cognome','classe','sezione','corso','dataNascita','genitore','email','telefono','ordineFiglio',
+  'dataIscrizione','modalita','metodo','quotaIscr','rata1','dataRata1','scadRata1','rata2','dataRata2','scadRata2','rata3','dataRata3','scadRata3',
   'noteRate','totaleDovuto','libri1','dataLibri1','libri2','dataLibri2','metodoLibri','libriDovuto',
-  'corsoExtra1','extra1','dataExtra1','corsoExtra2','extra2','dataExtra2','extraDovuto','prezzoLezione','note'];
+  'corsoExtra1','extra1','lezioniExtra1','dataExtra1','scadExtra1','corsoExtra2','extra2','lezioniExtra2','dataExtra2','scadExtra2','extraDovuto','prezzoLezione','note'];
 
-function clearForm(){fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el)el.value='';});}
+function setOrdineFiglio(n){
+  document.getElementById('f_ordineFiglio').value=n;
+  refreshOrdineFiglioToggle();
+}
+function setOrdineFiglioAltro(){
+  let cur=parseInt(document.getElementById('f_ordineFiglio').value)||1;
+  if(cur<4) cur=4;
+  document.getElementById('f_ordineFiglio').value=cur;
+  refreshOrdineFiglioToggle();
+  const manual=document.querySelector('.of-manual'); if(manual) manual.focus();
+}
+function onOrdineFiglioManualChange(val){
+  const n=Math.max(4,parseInt(val)||4);
+  document.getElementById('f_ordineFiglio').value=n;
+  document.querySelectorAll('.tg-figlio-altro').forEach(b=>b.classList.add('active'));
+  document.querySelectorAll('.tg-figlio-n').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.of-manual').forEach(el=>{ if(document.activeElement!==el) el.value=n; });
+}
+function refreshOrdineFiglioToggle(){
+  const val=parseInt(document.getElementById('f_ordineFiglio').value)||1;
+  document.querySelectorAll('.tg-figlio-n').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.n)===val));
+  const isAltro=val>=4;
+  document.querySelectorAll('.tg-figlio-altro').forEach(b=>b.classList.toggle('active',isAltro));
+  document.querySelectorAll('.of-manual').forEach(el=>{ el.style.display=isAltro?'inline-block':'none'; el.value=isAltro?val:''; });
+}
+function ordineFiglioLabel(v){
+  const n=v==='secondo'?2:(v==='primo'||!v?1:(parseInt(v)||1));
+  return n+'° Figlio';
+}
+
+function clearForm(){
+  fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el)el.value='';});
+  document.getElementById('f_ordineFiglio').value='1';
+  refreshOrdineFiglioToggle();
+}
 
 function getNextMatricola(){
   const used=new Set();
@@ -1214,6 +1311,8 @@ function openEditModal(id){
   if(!s) return;
   document.getElementById('modalTitle').textContent=`Modifica: ${s.nome} ${s.cognome}`;
   fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el&&s[f]!==undefined)el.value=s[f];});
+  document.getElementById('f_ordineFiglio').value = s.ordineFiglio==='secondo'?2:(s.ordineFiglio==='primo'||!s.ordineFiglio?1:(parseInt(s.ordineFiglio)||1));
+  refreshOrdineFiglioToggle();
   openModal('studentModal');
 }
 
@@ -1230,13 +1329,19 @@ function openViewModal(id, externalStudent){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div><div class="modal-section-title">📋 Anagrafica</div><table style="width:100%;border-collapse:collapse">
         ${row('Matricola',s.matricola||'–')}${row('Nome',`<strong>${s.nome} ${s.cognome}</strong>`)}
-        ${row('Classe',s.classe||'–')}${row('Corso',s.corso||'–')}</table></div>
+        ${row('Classe',s.classe||'–')}${row('Corso',s.corso||'–')}
+        ${row('Ordine Figlio',ordineFiglioLabel(s.ordineFiglio))}</table></div>
       <div><div class="modal-section-title">👨‍👩‍👧 Contatti</div><table style="width:100%;border-collapse:collapse">
         ${row('Genitore',s.genitore||'–')}${row('Telefono',s.telefono||'–')}${row('Email',s.email||'–')}</table></div>
       <div><div class="modal-section-title">💳 Pagamento</div><table style="width:100%;border-collapse:collapse">
         ${row('Modalità',s.modalita||'–')}${row('Metodo',s.metodo||'–')}
         ${row('Rata 1',s.rata1?`€ ${parseFloat(s.rata1).toFixed(2)}${s.dataRata1?' — '+fmtDate(s.dataRata1):''}`:'')}
         ${row('Totale dovuto',s.totaleDovuto?`€ ${parseFloat(s.totaleDovuto).toFixed(2)}`:'')}
+      </table></div>
+      <div><div class="modal-section-title">🎨 Corsi Extra</div><table style="width:100%;border-collapse:collapse">
+        ${s.corsoExtra1?row(s.corsoExtra1,`€ ${parseFloat(s.extra1||0).toFixed(2)}${s.lezioniExtra1?` — ${s.lezioniExtra1} lezioni coperte`:''}`):''}
+        ${s.corsoExtra2?row(s.corsoExtra2,`€ ${parseFloat(s.extra2||0).toFixed(2)}${s.lezioniExtra2?` — ${s.lezioniExtra2} lezioni coperte`:''}`):''}
+        ${!s.corsoExtra1&&!s.corsoExtra2?'<tr><td style="padding:6px 10px;font-size:0.85rem;color:var(--text3)">Nessun corso extra</td></tr>':''}
       </table></div>
       <div><div class="modal-section-title">📊 Saldi</div><table style="width:100%;border-collapse:collapse">
         ${row('Saldo Ordinario',fmtEuro(sO))}${row('Saldo Libri',fmtEuro(sL))}
@@ -1341,6 +1446,101 @@ function updateCestinoTabBadge(){
   if(!tab) return;
   tab.textContent=cestino.length>0?`🗑 Cestino (${cestino.length})`:'🗑 Cestino';
   tab.style.color=cestino.length>0?'var(--danger)':'';
+}
+
+// ═══════════════════════════════════════════
+//  SCADENZE (rate a scadenza + corsi extra a scadenza)
+// ═══════════════════════════════════════════
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  const d=new Date(dateStr+'T00:00:00');
+  const today=new Date(); today.setHours(0,0,0,0);
+  return Math.round((d-today)/86400000);
+}
+
+function urgencyBadge(days){
+  if(days===null) return '<span class="badge" style="background:#eee;color:#888">Senza scadenza</span>';
+  if(days<0) return `<span class="badge badge-red">⚠️ Scaduta da ${Math.abs(days)}g</span>`;
+  if(days===0) return `<span class="badge badge-red">⚠️ Scade oggi</span>`;
+  if(days<=14) return `<span class="badge" style="background:var(--warning-light);color:var(--warning)">⏳ Tra ${days}g</span>`;
+  return `<span class="badge badge-green">Tra ${days}g</span>`;
+}
+
+function getScadenzeData(){
+  const yearStudents = studentsThisYear().filter(s=>!s.ritirato);
+  const rateStudents = yearStudents.filter(s=>s.modalita && (s.modalita.startsWith('Due rate')||s.modalita.startsWith('Tre rate')));
+  const rateRows=[];
+  rateStudents.forEach(s=>{
+    [1,2,3].forEach(n=>{
+      const importo=parseFloat(s['rata'+n])||0;
+      const scad=s['scad'+'Rata'+n];
+      if(importo>0 || !scad) return;
+      rateRows.push({s,n,scad,days:daysUntil(scad)});
+    });
+  });
+  rateRows.sort((a,b)=>(a.days??9e9)-(b.days??9e9));
+
+  const extraRows=[];
+  yearStudents.forEach(s=>{
+    [1,2].forEach(n=>{
+      const corso=s['corsoExtra'+n];
+      const importo=parseFloat(s['extra'+n])||0;
+      const scad=s['scad'+'Extra'+n];
+      if(!corso || importo>0 || !scad) return;
+      extraRows.push({s,n,corso,scad,days:daysUntil(scad)});
+    });
+  });
+  extraRows.sort((a,b)=>(a.days??9e9)-(b.days??9e9));
+
+  return {rateStudents,rateRows,extraRows};
+}
+
+function updateScadenzeTabBadge(){
+  const tab=document.getElementById('scadenzeTab');
+  if(!tab) return;
+  const {rateRows,extraRows}=getScadenzeData();
+  const overdue=rateRows.filter(r=>r.days<0).length+extraRows.filter(r=>r.days<0).length;
+  tab.textContent=overdue>0?`🔔 Scadenze (${overdue})`:'🔔 Scadenze';
+  tab.style.color=overdue>0?'var(--danger)':'';
+}
+
+function renderScadenze(){
+  const el=document.getElementById('scadenzeContent');
+  const {rateStudents,rateRows,extraRows}=getScadenzeData();
+  const overdueRate=rateRows.filter(r=>r.days<0).length;
+  const overdueExtra=extraRows.filter(r=>r.days<0).length;
+
+  el.innerHTML=`
+    <div class="table-wrap" style="margin-bottom:24px">
+      <div class="table-header-row"><span class="table-title">📋 Pagamento a Rate</span>
+      <span class="table-count">${rateStudents.length} studenti a rate (2 o 3) · ${rateRows.length} rate in attesa con scadenza${overdueRate?` · ⚠️ ${overdueRate} scadute`:''}</span></div>
+      ${rateRows.length===0?`<div class="empty-state" style="padding:30px 20px"><div class="icon">📋</div><p>Nessuna rata con scadenza impostata ancora in attesa di pagamento.${rateStudents.length===0?' Nessuno studente ha scelto il pagamento a rate quest’anno.':''}</p></div>`:`
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Studente</th><th>Classe</th><th>Modalità</th><th>Rata</th><th>Scadenza</th><th>Stato</th><th></th></tr></thead>
+      <tbody>${rateRows.map(r=>`<tr style="cursor:pointer" onclick="openViewModal('${r.s.id}')">
+        <td><strong>${r.s.nome} ${r.s.cognome}</strong></td>
+        <td><span class="badge badge-blue">${r.s.classe||'–'}</span></td>
+        <td style="font-size:0.82rem">${r.s.modalita}</td>
+        <td>Rata ${r.n}</td>
+        <td>${new Date(r.scad+'T00:00:00').toLocaleDateString('it-IT')}</td>
+        <td>${urgencyBadge(r.days)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openEditModal('${r.s.id}')">✏️ Registra</button></td>
+      </tr>`).join('')}</tbody></table></div>`}
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header-row"><span class="table-title">🎨 Corsi Extra in Scadenza</span>
+      <span class="table-count">${extraRows.length} versamenti in attesa con scadenza${overdueExtra?` · ⚠️ ${overdueExtra} scaduti`:''}</span></div>
+      ${extraRows.length===0?`<div class="empty-state" style="padding:30px 20px"><div class="icon">🎨</div><p>Nessun corso extra con scadenza impostata ancora in attesa di pagamento.</p></div>`:`
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Studente</th><th>Classe</th><th>Corso</th><th>Scadenza</th><th>Stato</th><th></th></tr></thead>
+      <tbody>${extraRows.map(r=>`<tr style="cursor:pointer" onclick="openViewModal('${r.s.id}')">
+        <td><strong>${r.s.nome} ${r.s.cognome}</strong></td>
+        <td><span class="badge badge-blue">${r.s.classe||'–'}</span></td>
+        <td>${r.corso}</td>
+        <td>${new Date(r.scad+'T00:00:00').toLocaleDateString('it-IT')}</td>
+        <td>${urgencyBadge(r.days)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openEditModal('${r.s.id}')">✏️ Registra</button></td>
+      </tr>`).join('')}</tbody></table></div>`}
+    </div>`;
 }
 
 function renderCestino(){
@@ -1551,12 +1751,13 @@ async function deleteArchive(id){
 // ═══════════════════════════════════════════
 function switchTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  ['studenti','archivio','cestino'].forEach((t,i)=>{
+  ['studenti','scadenze','archivio','cestino'].forEach((t,i)=>{
     document.querySelectorAll('.tab')[i].classList[t===tab?'add':'remove']('active');
     document.getElementById('tab-'+t).style.display=t===tab?'':'none';
   });
   if(tab==='archivio') renderArchive();
   if(tab==='cestino')  renderCestino();
+  if(tab==='scadenze') renderScadenze();
 }
 
 // ═══════════════════════════════════════════
@@ -1792,14 +1993,14 @@ function buildCarriedStudent(s, newYear, annoChiuso, operatore) {
   const ns={
     id:String(Date.now()+Math.random()),
     matricola:s.matricola,nome:s.nome,cognome:s.cognome,classe:s.classe,sezione:s.sezione,
-    corso:s.corso||'',dataNascita:s.dataNascita,genitore:s.genitore,email:s.email,telefono:s.telefono,
+    corso:s.corso||'',dataNascita:s.dataNascita,genitore:s.genitore,email:s.email,telefono:s.telefono,ordineFiglio:s.ordineFiglio||1,
     dataIscrizione:'',modalita:s.modalita,metodo:s.metodo,prezzoLezione:s.prezzoLezione||35,
     quotaIscr:0,rata1:sT>0?sT:0,dataRata1:sT>0?new Date().toISOString().slice(0,10):'',
     rata2:0,dataRata2:'',rata3:0,dataRata3:'',
     noteRate:sT!==0?`Saldo riportato da A.S. ${annoChiuso}: ${sT>0?'+':''}€${sT.toFixed(2)}`:'',
     totaleDovuto:sT<0?Math.abs(sT):0,
     libri1:0,dataLibri1:'',libri2:0,dataLibri2:'',metodoLibri:'',libriDovuto:0,
-    corsoExtra1:'',extra1:0,dataExtra1:'',corsoExtra2:'',extra2:0,dataExtra2:'',extraDovuto:0,
+    corsoExtra1:'',extra1:0,lezioniExtra1:0,dataExtra1:'',scadExtra1:'',corsoExtra2:'',extra2:0,lezioniExtra2:0,dataExtra2:'',scadExtra2:'',extraDovuto:0,
     note:`Continua da A.S. ${annoChiuso}`+(s.note?' — '+s.note:''),
     lezioni:[],ritirato:false,continua:true,changelog:[],
     anno:newYear, storicoAnni:storico,
@@ -1953,6 +2154,112 @@ function startEditMatricola(id,spanEl){
 }
 
 // ═══════════════════════════════════════════
+//  EXPORT EXCEL (filtrabile per classe / singolo / gruppo)
+// ═══════════════════════════════════════════
+let exportSelectedIds = new Set();
+
+function openExportModal(){
+  const yearStudents = studentsThisYear();
+  exportSelectedIds = new Set(yearStudents.map(s=>String(s.id))); // default: tutti selezionati
+  const classes=[...new Set(yearStudents.map(s=>s.classe).filter(Boolean))].sort();
+  const sel=document.getElementById('exportClasseFilter');
+  sel.innerHTML='<option value="">Tutte le classi</option>'+classes.map(c=>`<option value="${c}">${c}</option>`).join('');
+  document.getElementById('exportSearch').value='';
+  renderExportList();
+  openModal('exportModal');
+}
+
+function renderExportList(){
+  const yearStudents = studentsThisYear();
+  const classe=document.getElementById('exportClasseFilter').value;
+  const q=document.getElementById('exportSearch').value.trim().toLowerCase();
+  const visible=yearStudents.filter(s=>{
+    if(classe && s.classe!==classe) return false;
+    if(q && !(`${s.nome} ${s.cognome}`.toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=>(a.cognome||'').localeCompare(b.cognome||''));
+  const list=document.getElementById('exportList');
+  if(visible.length===0){ list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:0.85rem">Nessuno studente trovato.</div>'; }
+  else {
+    list.innerHTML=visible.map(s=>{
+      const id=String(s.id); const checked=exportSelectedIds.has(id);
+      const sT=calcSaldoTotale(s);
+      return `<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <input type="checkbox" ${checked?'checked':''} onchange="toggleExportId('${id}',this.checked)" style="width:16px;height:16px">
+        <span style="flex:1;font-size:0.88rem"><strong>${s.cognome}</strong> ${s.nome}</span>
+        <span class="badge badge-blue">${s.classe||'–'}</span>
+        <span style="font-size:0.82rem;min-width:70px;text-align:right">${fmtEuro(sT)}</span>
+      </label>`;
+    }).join('');
+  }
+  document.getElementById('exportCountLabel').textContent=`${exportSelectedIds.size} selezionati`;
+}
+
+function toggleExportId(id,checked){
+  if(checked) exportSelectedIds.add(id); else exportSelectedIds.delete(id);
+  document.getElementById('exportCountLabel').textContent=`${exportSelectedIds.size} selezionati`;
+}
+
+function exportSelectVisible(select){
+  const yearStudents = studentsThisYear();
+  const classe=document.getElementById('exportClasseFilter').value;
+  const q=document.getElementById('exportSearch').value.trim().toLowerCase();
+  yearStudents.forEach(s=>{
+    if(classe && s.classe!==classe) return;
+    if(q && !(`${s.nome} ${s.cognome}`.toLowerCase().includes(q))) return;
+    const id=String(s.id);
+    if(select) exportSelectedIds.add(id); else exportSelectedIds.delete(id);
+  });
+  renderExportList();
+}
+
+function generateExcel(){
+  if(exportSelectedIds.size===0){ alert('Seleziona almeno uno studente da esportare.'); return; }
+  const sel=[...students].filter(s=>exportSelectedIds.has(String(s.id)))
+    .sort((a,b)=>(a.cognome||'').localeCompare(b.cognome||''));
+
+  const headers=['Matricola','Cognome','Nome','Classe','Sezione','Genitore','Telefono','Email','Ordine Figlio','Modalità',
+    'Versato Ordinario (€)','Dovuto Ordinario (€)','Saldo Ordinario (€)',
+    'Versato Libri (€)','Dovuto Libri (€)','Saldo Libri (€)',
+    'Corso Extra 1','Lezioni Coperte 1','Corso Extra 2','Lezioni Coperte 2','Versato Extra (€)','Dovuto Extra (€)','Saldo Extra (€)',
+    'Saldo Totale (€)','Stato','Note'];
+
+  const rows=sel.map(s=>{
+    const versatoOrd=(parseFloat(s.quotaIscr)||0)+(parseFloat(s.rata1)||0)+(parseFloat(s.rata2)||0)+(parseFloat(s.rata3)||0);
+    const versatoLibri=(parseFloat(s.libri1)||0)+(parseFloat(s.libri2)||0);
+    const versatoExtra=(parseFloat(s.extra1)||0)+(parseFloat(s.extra2)||0);
+    const sT=calcSaldoTotale(s);
+    const stato=sT<0?'Debito':sT===0?'In pari':'Credito';
+    return [
+      s.matricola||'', s.cognome||'', s.nome||'', s.classe||'', s.sezione||'', s.genitore||'', s.telefono||'', s.email||'',
+      ordineFiglioLabel(s.ordineFiglio), s.modalita||'',
+      versatoOrd, parseFloat(s.totaleDovuto)||0, calcSaldoOrdinario(s),
+      versatoLibri, parseFloat(s.libriDovuto)||0, calcSaldoLibri(s),
+      s.corsoExtra1||'', parseFloat(s.lezioniExtra1)||0, s.corsoExtra2||'', parseFloat(s.lezioniExtra2)||0, versatoExtra, parseFloat(s.extraDovuto)||0, calcSaldoExtra(s),
+      sT, stato, s.note||''
+    ];
+  });
+
+  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=headers.map(h=>({wch:Math.max(10,Math.min(24,h.length+4))}));
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:0,c:headers.length-1}})};
+
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Pagamenti');
+
+  const classe=document.getElementById('exportClasseFilter').value;
+  let suffix='selezione';
+  if(sel.length===studentsThisYear().length) suffix='tutti';
+  else if(classe && sel.every(s=>s.classe===classe)) suffix='classe_'+classe.replace(/[^a-zA-Z0-9]/g,'');
+  else if(sel.length===1) suffix=(sel[0].cognome||'').replace(/[^a-zA-Z0-9]/g,'')+'_'+(sel[0].nome||'').replace(/[^a-zA-Z0-9]/g,'');
+
+  const filename=`pagamenti_${currentYear.replace(/[–\-]/g,'_')}_${suffix}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  closeModal('exportModal');
+  showToast(`✅ Excel esportato: ${sel.length} studenti.`);
+}
+
+// ═══════════════════════════════════════════
 //  EXPORT CSV
 // ═══════════════════════════════════════════
 function exportCSV(){
@@ -1967,7 +2274,7 @@ function exportCSV(){
 //  CLICK OUTSIDE MODALS
 // ═══════════════════════════════════════════
 window.addEventListener('click',e=>{
-  ['studentModal','confirmModal','archiveYearModal','rataModal','freqModal','coursesModal','promoteModal','viewModal','operatoriModal'].forEach(id=>{
+  ['studentModal','confirmModal','archiveYearModal','rataModal','freqModal','coursesModal','promoteModal','viewModal','operatoriModal','exportModal'].forEach(id=>{
     if(e.target===document.getElementById(id)) closeModal(id);
   });
   if(e.target===document.getElementById('operatorModal')) cancelOperator();
@@ -2052,7 +2359,7 @@ function restoreFromJSON(event) {
         for (const c of cestino) await window.fbSaveCestino(c);
         await window.fbSaveSettings({ currentYear, courses, operatori: getOperatori(), anni });
         renderYearSelector();
-        populateFilters(); renderTable(); updateCestinoTabBadge();
+        populateFilters(); renderTable(); updateCestinoTabBadge(); updateScadenzeTabBadge();
         showToast('✅ Ripristino completato!');
       })();
     } catch(err) { alert('Errore nel file: ' + err.message); }
